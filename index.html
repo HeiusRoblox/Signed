@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Signed MobileConfig FFxZw6D</title>
   
-  <!-- Thư viện Forge (ký PKCS#7) & JSZip (nén zip client-side) -->
+  <!-- Thư viện Forge & JSZip -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
@@ -34,7 +34,6 @@
       position: relative;
     }
 
-    /* Hiệu ứng nền cầu vồng mờ ảo */
     body::before {
       content: '';
       position: absolute;
@@ -59,7 +58,6 @@
       100% { transform: translate(-50%, -50%) rotate(360deg); }
     }
 
-    /* Khung chính Glassmorphism */
     .container {
       position: relative;
       z-index: 1;
@@ -76,7 +74,6 @@
       overflow: hidden;
     }
 
-    /* Viền hiệu ứng cầu vồng chạy ở mép trên */
     .container::before {
       content: '';
       position: absolute;
@@ -96,7 +93,6 @@
       100% { transform: translateX(50%); }
     }
 
-    /* Tiêu đề hiệu ứng cầu vồng ánh kim */
     .title {
       font-size: 2.2rem;
       font-weight: 800;
@@ -127,7 +123,6 @@
       margin-bottom: 28px;
     }
 
-    /* Khu vực Upload Mobileconfig */
     .upload-box {
       border: 2px dashed rgba(255, 255, 255, 0.2);
       border-radius: 16px;
@@ -173,7 +168,6 @@
       margin-top: 6px;
     }
 
-    /* Ô hiển thị nguồn chứng chỉ */
     .info-box {
       background: rgba(0, 0, 0, 0.35);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -204,7 +198,6 @@
       font-weight: 600;
     }
 
-    /* Style dùng chung cho các nút bấm cầu vồng */
     .btn-rainbow {
       position: relative;
       width: 100%;
@@ -270,7 +263,6 @@
       100% { background-position: 0% 0%; }
     }
 
-    /* Khu vực nút tải xuống sau khi ký xong */
     .download-group {
       display: none;
       gap: 12px;
@@ -299,7 +291,6 @@
       background: linear-gradient(45deg, #7a00ff, #ff0055, #ffea00);
     }
 
-    /* Nhật ký trạng thái (Status Log) */
     .status-log {
       margin-top: 24px;
       padding: 14px;
@@ -339,7 +330,6 @@
     <h1 class="title">Signed MobileConfig FFxZw6D</h1>
     <p class="subtitle">Developer HgHeius x Zw6D</p>
 
-    <!-- Khung Upload Mobileconfig -->
     <div class="upload-box">
       <input type="file" id="configFile" accept=".mobileconfig,.plist" onchange="handleFileSelect(event)">
       <span class="upload-icon">📁</span>
@@ -347,7 +337,6 @@
       <div class="file-name" id="fileName"></div>
     </div>
 
-    <!-- Thông tin chứng chỉ lấy từ Root -->
     <div class="info-box">
       <div class="info-item">
         <span class="info-label">Cert Root:</span>
@@ -359,12 +348,10 @@
       </div>
     </div>
 
-    <!-- Nút Bắt đầu ký -->
     <button class="btn-rainbow" id="btnSign" onclick="processSigning()">
       Ký MobileConfig Đã Upload
     </button>
 
-    <!-- Hai nút Tải về xuất hiện sau khi ký xong -->
     <div class="download-group" id="downloadGroup">
       <button class="btn-rainbow btn-download btn-direct" onclick="downloadDirect()">
         📥 Tải Trực Tiếp
@@ -490,11 +477,12 @@ ${certBase64}
         const certBase64 = certPemToBase64(certPem);
         const finalXml = injectPayloadIntoMobileConfig(uploadedFileContent, certBase64);
 
-        updateLog("Đang thực hiện ký số PKCS#7 / S-MIME...");
+        updateLog("Đang đóng gói và ký PKCS#7 chuẩn iOS...");
         const certObj = forge.pki.certificateFromPem(certPem);
         const keyObj = forge.pki.privateKeyFromPem(keyPem);
 
         const p7 = forge.pkcs7.createSignedData();
+        // Gắn trực tiếp nội dung XML vào Data của PKCS#7
         p7.content = forge.util.createBuffer(finalXml, 'utf8');
         p7.addCertificate(certObj);
         p7.addSigner({
@@ -508,17 +496,23 @@ ${certBase64}
           ]
         });
 
-        p7.sign({ detached: true });
+        // QUAN TRỌNG: detached: false để gói XML trực tiếp bên trong chữ ký
+        p7.sign({ detached: false });
 
-        const derBuffer = forge.asn1.toDer(p7.toAsn1()).getBytes();
-        const pemSigned = 
-          "-----BEGIN CMS-----\n" +
-          forge.util.encode64(derBuffer, 64) +
-          "\n-----END CMS-----";
+        // Chuyển ASN.1 thành định dạng DER Binary (iOS tương thích 100%)
+        const asn1 = p7.toAsn1();
+        const derBytes = forge.asn1.toDer(asn1).getBytes();
+        
+        // Chuyển chuỗi Byte của Forge sang Uint8Array
+        const arrayBuffer = new Uint8Array(derBytes.length);
+        for (let i = 0; i < derBytes.length; i++) {
+          arrayBuffer[i] = derBytes.charCodeAt(i);
+        }
 
-        signedBlobResult = new Blob([pemSigned], { type: 'application/x-apple-aspen-config' });
+        // Tạo Blob Binary chuẩn iOS MobileConfig
+        signedBlobResult = new Blob([arrayBuffer], { type: 'application/x-apple-aspen-config' });
 
-        updateLog("🎉 Đã ký thành công! Hãy chọn hình thức tải xuống bên dưới.", "success");
+        updateLog("🎉 Đã ký thành công chuẩn Apple! Hãy chọn nút tải xuống.", "success");
         document.getElementById('downloadGroup').style.display = 'flex';
 
       } catch (err) {
@@ -529,14 +523,12 @@ ${certBase64}
       }
     }
 
-    // Tải trực tiếp file .mobileconfig đã ký
     function downloadDirect() {
       if (!signedBlobResult) return;
       const fileName = `${originalBaseFileName}_Signed.mobileconfig`;
       triggerDownload(signedBlobResult, fileName);
     }
 
-    // Nén file .mobileconfig vào file .zip bằng JSZip và tải về
     async function downloadZip() {
       if (!signedBlobResult) return;
       updateLog("Đang nén file Zip...", "success");
