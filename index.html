@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signed MobileConfig FFxZw6D</title>
+  
+  <!-- Thư viện Forge (ký PKCS#7) & JSZip (nén zip client-side) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #08080c;
+      --card-bg: rgba(18, 18, 26, 0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: #f0f0f5;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Hiệu ứng nền cầu vồng mờ ảo */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 650px;
+      height: 650px;
+      background: conic-gradient(
+        from 0deg,
+        #ff0055, #7a00ff, #00e5ff, #00ff66, #ffea00, #ff0055
+      );
+      filter: blur(150px);
+      opacity: 0.25;
+      z-index: 0;
+      animation: rotateBg 12s linear infinite;
+      border-radius: 50%;
+    }
+
+    @keyframes rotateBg {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    /* Khung chính Glassmorphism */
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 580px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 24px;
+      padding: 40px 32px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      overflow: hidden;
+    }
+
+    /* Viền hiệu ứng cầu vồng chạy ở mép trên */
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 200%;
+      height: 4px;
+      background: linear-gradient(
+        90deg, 
+        #ff007f, #7f00ff, #00f0ff, #00ff87, #ffef00, #ff007f
+      );
+      animation: rainbowFlow 4s linear infinite;
+    }
+
+    @keyframes rainbowFlow {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(50%); }
+    }
+
+    /* Tiêu đề hiệu ứng cầu vồng ánh kim */
+    .title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(
+        90deg,
+        #ff0055, #9900ff, #00d4ff, #00ff88, #ffea00, #ff0055
+      );
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: rainbowText 5s ease infinite;
+      margin-bottom: 8px;
+    }
+
+    @keyframes rainbowText {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .subtitle {
+      font-size: 0.92rem;
+      color: rgba(255, 255, 255, 0.65);
+      font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    /* Khu vực Upload Mobileconfig */
+    .upload-box {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .upload-box:hover {
+      border-color: #00f0ff;
+      background: rgba(0, 240, 255, 0.05);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+    }
+
+    .upload-box input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .upload-text {
+      font-size: 0.95rem;
+      color: #b0b0c5;
+    }
+
+    .file-name {
+      color: #00ff87;
+      font-weight: 600;
+      word-break: break-all;
+      margin-top: 6px;
+    }
+
+    /* Ô hiển thị nguồn chứng chỉ */
+    .info-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 24px;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .info-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .info-label {
+      color: #6e6e8e;
+    }
+
+    .info-value {
+      color: #00f0ff;
+      font-family: monospace;
+      font-weight: 600;
+    }
+
+    /* Style dùng chung cho các nút bấm cầu vồng */
+    .btn-rainbow {
+      position: relative;
+      width: 100%;
+      padding: 16px 24px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      background: #0d0d14;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.3s ease;
+      z-index: 1;
+    }
+
+    .btn-rainbow::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(
+        45deg, 
+        #ff0055, #7a00ff, #00e5ff, #00ff66, #ffea00, #ff0055
+      );
+      background-size: 400%;
+      border-radius: 18px;
+      z-index: -1;
+      animation: rainbowGlow 6s linear infinite;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .btn-rainbow::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      background: #0e0e17;
+      border-radius: 14px;
+      z-index: -1;
+      transition: background 0.3s ease;
+    }
+
+    .btn-rainbow:hover::after {
+      background: transparent;
+    }
+
+    .btn-rainbow:hover {
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-rainbow:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    @keyframes rainbowGlow {
+      0% { background-position: 0% 0%; }
+      50% { background-position: 100% 100%; }
+      100% { background-position: 0% 0%; }
+    }
+
+    /* Khu vực nút tải xuống sau khi ký xong */
+    .download-group {
+      display: none;
+      gap: 12px;
+      margin-top: 16px;
+      flex-direction: column;
+    }
+
+    @media (min-width: 480px) {
+      .download-group {
+        flex-direction: row;
+      }
+    }
+
+    .btn-download {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      border-radius: 14px;
+    }
+
+    .btn-direct::before {
+      background: linear-gradient(45deg, #00e5ff, #00ff66, #00e5ff);
+    }
+
+    .btn-zip::before {
+      background: linear-gradient(45deg, #7a00ff, #ff0055, #ffea00);
+    }
+
+    /* Nhật ký trạng thái (Status Log) */
+    .status-log {
+      margin-top: 24px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.82rem;
+      color: #8a8a9e;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      word-break: break-all;
+    }
+
+    .status-log.success {
+      color: #00ff87;
+      border-color: rgba(0, 255, 135, 0.2);
+    }
+
+    .status-log.error {
+      color: #ff0055;
+      border-color: rgba(255, 0, 85, 0.2);
+    }
+
+    .footer {
+      margin-top: 24px;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1 class="title">Signed MobileConfig FFxZw6D</h1>
+    <p class="subtitle">Developer HgHeius x Zw6D</p>
+
+    <!-- Khung Upload Mobileconfig -->
+    <div class="upload-box">
+      <input type="file" id="configFile" accept=".mobileconfig,.plist" onchange="handleFileSelect(event)">
+      <span class="upload-icon">📁</span>
+      <div class="upload-text" id="uploadText">Nhấp hoặc kéo thả file <b>.mobileconfig</b> vào đây</div>
+      <div class="file-name" id="fileName"></div>
+    </div>
+
+    <!-- Thông tin chứng chỉ lấy từ Root -->
+    <div class="info-box">
+      <div class="info-item">
+        <span class="info-label">Cert Root:</span>
+        <span class="info-value">./cert.crt</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Key Root:</span>
+        <span class="info-value">./cert.key</span>
+      </div>
+    </div>
+
+    <!-- Nút Bắt đầu ký -->
+    <button class="btn-rainbow" id="btnSign" onclick="processSigning()">
+      Ký MobileConfig Đã Upload
+    </button>
+
+    <!-- Hai nút Tải về xuất hiện sau khi ký xong -->
+    <div class="download-group" id="downloadGroup">
+      <button class="btn-rainbow btn-download btn-direct" onclick="downloadDirect()">
+        📥 Tải Trực Tiếp
+      </button>
+      <button class="btn-rainbow btn-download btn-zip" onclick="downloadZip()">
+        📦 Nén Zip Và Tải
+      </button>
+    </div>
+
+    <div class="status-log" id="statusLog">
+      Vui lòng chọn file .mobileconfig để bắt đầu.
+    </div>
+
+    <div class="footer">
+      Powered by PKCS#7 / S-MIME & Client JSZip Engine
+    </div>
+  </div>
+
+  <script>
+    let uploadedFileContent = null;
+    let originalBaseFileName = "Signed_Config";
+    let signedBlobResult = null;
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      originalBaseFileName = file.name.replace(/\.mobileconfig$/i, '');
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        uploadedFileContent = e.target.result;
+        document.getElementById('fileName').textContent = "Đã chọn: " + file.name;
+        document.getElementById('downloadGroup').style.display = 'none';
+        signedBlobResult = null;
+        updateLog("Đã nạp cấu hình. Nhấn 'Ký MobileConfig Đã Upload' để tiếp tục!", "success");
+      };
+      reader.readAsText(file);
+    }
+
+    function updateLog(message, type = '') {
+      const statusLog = document.getElementById('statusLog');
+      statusLog.textContent = message;
+      statusLog.className = 'status-log ' + type;
+    }
+
+    function certPemToBase64(pem) {
+      return pem
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g, '')
+        .replace(/[\r\n\s]/g, '');
+    }
+
+    function generateCertDictPayload(certBase64) {
+      const uuid = forge.util.bytesToHex(forge.random.getBytesSync(16));
+      return `<dict>
+			<key>PayloadCertificateFileName</key>
+			<string>cert.crt</string>
+			<key>PayloadContent</key>
+			<data>
+${certBase64}
+			</data>
+			<key>PayloadDescription</key>
+			<string>Chứng nhận từ Developer HgHeius x Zw6D</string>
+			<key>PayloadDisplayName</key>
+			<string>FFxZw6D Certificate Payload</string>
+			<key>PayloadIdentifier</key>
+			<string>com.hgheius.zw6d.cert.${uuid}</string>
+			<key>PayloadType</key>
+			<string>com.apple.security.pkcs1</string>
+			<key>PayloadUUID</key>
+			<string>${uuid}</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+		</dict>`;
+    }
+
+    function injectPayloadIntoMobileConfig(originalXml, certBase64) {
+      const dictPayload = generateCertDictPayload(certBase64);
+      const payloadKeyRegex = /<key>PayloadContent<\/key>\s*<array>/i;
+      const match = originalXml.match(payloadKeyRegex);
+
+      if (match) {
+        const insertPosition = match.index + match[0].length;
+        return originalXml.slice(0, insertPosition) + "\n\t\t" + dictPayload + originalXml.slice(insertPosition);
+      } else {
+        const lastDictRegex = /<\/dict>\s*<\/plist>/i;
+        const fallbackMatch = originalXml.match(lastDictRegex);
+        if (fallbackMatch) {
+          const insertPosition = fallbackMatch.index;
+          const newArrayBlock = `<key>PayloadContent</key>\n\t<array>\n\t\t${dictPayload}\n\t</array>\n`;
+          return originalXml.slice(0, insertPosition) + newArrayBlock + originalXml.slice(insertPosition);
+        }
+      }
+      throw new Error("File .mobileconfig không đúng cấu trúc Plist XML chuẩn!");
+    }
+
+    async function processSigning() {
+      if (!uploadedFileContent) {
+        updateLog("Vui lòng tải lên 1 file .mobileconfig trước!", "error");
+        return;
+      }
+
+      const btn = document.getElementById('btnSign');
+      btn.disabled = true;
+      document.getElementById('downloadGroup').style.display = 'none';
+
+      try {
+        updateLog("Đang đọc cert.crt & cert.key từ thư mục gốc...");
+        const [certRes, keyRes] = await Promise.all([
+          fetch('./cert.crt'),
+          fetch('./cert.key')
+        ]);
+
+        if (!certRes.ok || !keyRes.ok) {
+          throw new Error("Không thể đọc cert.crt hoặc cert.key từ thư mục gốc!");
+        }
+
+        const certPem = await certRes.text();
+        const keyPem = await keyRes.text();
+
+        updateLog("Đang chèn Payload Cert vào file cấu hình...");
+        const certBase64 = certPemToBase64(certPem);
+        const finalXml = injectPayloadIntoMobileConfig(uploadedFileContent, certBase64);
+
+        updateLog("Đang thực hiện ký số PKCS#7 / S-MIME...");
+        const certObj = forge.pki.certificateFromPem(certPem);
+        const keyObj = forge.pki.privateKeyFromPem(keyPem);
+
+        const p7 = forge.pkcs7.createSignedData();
+        p7.content = forge.util.createBuffer(finalXml, 'utf8');
+        p7.addCertificate(certObj);
+        p7.addSigner({
+          key: keyObj,
+          certificate: certObj,
+          digestAlgorithm: forge.pki.oids.sha256,
+          authenticatedAttributes: [
+            { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+            { type: forge.pki.oids.messageDigest },
+            { type: forge.pki.oids.signingTime, value: new Date() }
+          ]
+        });
+
+        p7.sign({ detached: true });
+
+        const derBuffer = forge.asn1.toDer(p7.toAsn1()).getBytes();
+        const pemSigned = 
+          "-----BEGIN CMS-----\n" +
+          forge.util.encode64(derBuffer, 64) +
+          "\n-----END CMS-----";
+
+        signedBlobResult = new Blob([pemSigned], { type: 'application/x-apple-aspen-config' });
+
+        updateLog("🎉 Đã ký thành công! Hãy chọn hình thức tải xuống bên dưới.", "success");
+        document.getElementById('downloadGroup').style.display = 'flex';
+
+      } catch (err) {
+        console.error(err);
+        updateLog("Lỗi: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Tải trực tiếp file .mobileconfig đã ký
+    function downloadDirect() {
+      if (!signedBlobResult) return;
+      const fileName = `${originalBaseFileName}_Signed.mobileconfig`;
+      triggerDownload(signedBlobResult, fileName);
+    }
+
+    // Nén file .mobileconfig vào file .zip bằng JSZip và tải về
+    async function downloadZip() {
+      if (!signedBlobResult) return;
+      updateLog("Đang nén file Zip...", "success");
+
+      const zip = new JSZip();
+      const configFileName = `${originalBaseFileName}_Signed.mobileconfig`;
+      
+      zip.file(configFileName, signedBlobResult);
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipFileName = `${originalBaseFileName}_Signed.zip`;
+      
+      triggerDownload(zipBlob, zipFileName);
+      updateLog("Đã tải xong file Zip!", "success");
+    }
+
+    function triggerDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
