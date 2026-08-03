@@ -1,0 +1,2336 @@
+
+
+
+
+<style>
+.signed-success{display:none;margin-top:12px;text-align:center;font-size:13px;font-weight:700;color:#22c55e}
+.signed-success.show{display:block}
+</style>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trình tạo & ký hồ sơ .mobileconfig — Levizioscheatz</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js">
+/* Hard gate: no tool action can execute without a valid key. */
+['buildBtn','signBtn','unsignBtn','signZipBtn','saveBtn','downloadBtn'].forEach(id=>{
+  const el=$(id);
+  if(!el) return;
+  el.addEventListener('click',e=>{
+    if(!hasValidAccess()){
+      e.preventDefault(); e.stopImmediatePropagation();
+      showLoginGate();
+    }
+  },true);
+});
+countdownTimer = setInterval(refreshCountdown, 1000);
+validationTimer = setInterval(continuousKeyCheck, 10000);
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --text:#1c1c1e;
+    --text-dim:#68686d;
+    --text-faint:#9a9a9f;
+    --accent:#0a84ff;
+    --accent-2:#5e5ce6;
+    --accent-3:#ff6482;
+    --success:#22b25a;
+    --danger:#ff3b30;
+    --warn:#c97a00;
+    --glass:rgba(255,255,255,.46);
+    --glass-strong:rgba(255,255,255,.7);
+    --glass-border:rgba(255,255,255,.78);
+    --glass-shadow:0 10px 34px rgba(31,38,52,.14), 0 1.5px 0 rgba(255,255,255,.65) inset;
+    --r-xl:30px;
+    --r-lg:22px;
+    --r-md:16px;
+    --r-sm:11px;
+    --r-pill:999px;
+    --font: -apple-system, "SF Pro Display", "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: "SF Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:var(--font); color:var(--text);
+    min-height:100vh; overflow-x:hidden; background:#eef1f7;
+  }
+  .bg{position:fixed; inset:0; z-index:-1; overflow:hidden;}
+  .bg span{position:absolute; border-radius:50%; filter:blur(70px); opacity:.55; will-change:transform;}
+  .bg span:nth-child(1){width:56vw;height:56vw;top:-18vw;left:-14vw;background:radial-gradient(circle,#a6c8ff, transparent 70%); animation:float1 26s ease-in-out infinite;}
+  .bg span:nth-child(2){width:48vw;height:48vw;bottom:-16vw;right:-12vw;background:radial-gradient(circle,#c9b6ff, transparent 70%); animation:float2 30s ease-in-out infinite;}
+  .bg span:nth-child(3){width:38vw;height:38vw;top:30%;right:8%;background:radial-gradient(circle,#ffc2d1, transparent 70%); animation:float3 22s ease-in-out infinite;}
+  .bg span:nth-child(4){width:30vw;height:30vw;bottom:10%;left:8%;background:radial-gradient(circle,#b8f0d8, transparent 70%); animation:float1 34s ease-in-out infinite reverse;}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(4vw,3vw) scale(1.08);}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-3vw,-4vw) scale(1.1);}}
+  @keyframes float3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-3vw,3vw) scale(.95);}}
+  .grain{position:fixed;inset:0;z-index:-1;opacity:.035;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap{max-width:660px;margin:0 auto;padding:50px 20px 100px;}
+
+  header{margin-bottom:26px;}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--glass-strong);
+    backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border:1px solid var(--glass-border);
+    padding:6px 14px 6px 10px;border-radius:var(--r-pill);
+    font-size:11.5px;font-weight:700;color:var(--accent-2);
+    box-shadow:var(--glass-shadow); margin-bottom:16px;
+  }
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));}
+  h1{font-size:31px;font-weight:750;letter-spacing:-.02em;line-height:1.12;margin:0 0 8px;}
+  h1 span{background:linear-gradient(120deg,var(--accent-2),var(--accent),var(--accent-3));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--text-dim);font-size:14px;line-height:1.55;max-width:54ch;}
+
+  .segment{
+    display:flex; gap:4px; padding:4px;
+    background:var(--glass);
+    backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
+    border:1px solid var(--glass-border); border-radius:var(--r-pill);
+    box-shadow:var(--glass-shadow); margin:24px 0 20px;
+  }
+  .segment button{
+    flex:1; border:none; background:transparent; cursor:pointer;
+    padding:11px 8px; border-radius:var(--r-pill);
+    font-family:var(--font); font-size:13px; font-weight:650; color:var(--text-dim);
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    transition:color .25s ease;
+  }
+  .segment button svg{width:15px;height:15px;opacity:.7;transition:opacity .25s ease;}
+  .segment button.active{
+    color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    box-shadow:0 6px 18px rgba(94,92,230,.35), 0 1px 0 rgba(255,255,255,.4) inset;
+  }
+  .segment button.active svg{opacity:1;}
+
+  .view{display:none!important;}.view.active{display:block!important;}
+  .view.active{display:block; animation:rise .45s cubic-bezier(.22,1,.36,1);}
+  @keyframes rise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+  .card{
+    background:var(--glass);
+    backdrop-filter:blur(28px) saturate(190%); -webkit-backdrop-filter:blur(28px) saturate(190%);
+    border:1px solid var(--glass-border); border-radius:var(--r-xl);
+    box-shadow:var(--glass-shadow);
+    padding:22px 22px 24px; margin-bottom:16px; position:relative; overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent, rgba(255,255,255,.9), transparent);}
+  .card h2{
+    font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-dim);
+    font-weight:750; margin:0 0 16px; display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .num{
+    width:20px;height:20px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .card h2 small{margin-left:auto;font-weight:600;color:var(--text-faint);text-transform:none;letter-spacing:0;font-size:11px;}
+
+  label{display:block;font-size:12.5px;color:var(--text-dim);font-weight:600;margin:14px 0 6px;}
+  label:first-of-type{margin-top:0;}
+  .hint-text{font-size:11px;color:var(--text-faint);margin-top:5px;line-height:1.4;}
+
+  input[type=text], input[type=password], input[type=number], input[type=url]{
+    width:100%; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.85);
+    color:var(--text); padding:11px 14px; font-family:var(--font); font-size:14px;
+    border-radius:var(--r-md); outline:none; box-shadow:0 1px 2px rgba(31,38,52,.05) inset;
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  input:focus{border-color:var(--accent); box-shadow:0 0 0 4px rgba(10,132,255,.15);}
+  select{
+    width:100%; background:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.85);
+    color:var(--text); padding:11px 14px; font-family:var(--font); font-size:14px;
+    border-radius:var(--r-md); outline:none; appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6b70' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 14px center;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  .drop{
+    display:flex;align-items:center;gap:12px;
+    border:1.5px dashed rgba(120,120,130,.35); border-radius:var(--r-lg);
+    padding:16px; cursor:pointer; background:rgba(255,255,255,.3);
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .drop:hover{border-color:var(--accent); background:rgba(255,255,255,.45);}
+  .drop .icon{
+    width:38px;height:38px;border-radius:12px;flex:none;
+    background:linear-gradient(135deg,rgba(10,132,255,.15),rgba(94,92,230,.15));
+    display:flex;align-items:center;justify-content:center;color:var(--accent-2);
+  }
+  .drop .icon svg{width:18px;height:18px;}
+  .drop .text{min-width:0;}
+  .drop .title{font-size:13.5px;font-weight:650;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .drop .hint{font-size:11.5px;color:var(--text-faint);margin-top:1px;}
+  input[type=file]{display:none;}
+.builder-pill b{font-weight:700;}
+
+  .modes{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .modebtn{
+    background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.6);color:var(--text-dim);
+    font-family:var(--font);font-size:11.5px;font-weight:650;
+    padding:8px 12px;border-radius:var(--r-pill);cursor:pointer;transition:all .2s ease;
+  }
+  .modebtn.active{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;box-shadow:0 4px 12px rgba(94,92,230,.3);}
+  .mode-panel{display:none;}
+  .mode-panel.active{display:block;}
+  .mode-desc{font-size:11.5px;color:var(--text-faint);line-height:1.5;margin:0 0 14px;padding:10px 12px;background:rgba(255,255,255,.3);border-radius:var(--r-sm);}
+
+  /* iOS-style toggle */
+  .toggle{display:flex;align-items:center;gap:11px;cursor:pointer;padding:9px 2px;}
+  .toggle input{display:none;}
+  .toggle .track{width:44px;height:26px;border-radius:999px;background:rgba(120,120,128,.28);position:relative;transition:background .2s ease;flex:none;}
+  .toggle .thumb{position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.28);transition:transform .2s cubic-bezier(.4,0,.2,1);}
+  .toggle input:checked + .track{background:linear-gradient(135deg,var(--accent),var(--accent-2));}
+  .toggle input:checked + .track .thumb{transform:translateX(18px);}
+  .toggle .tlabel{font-size:13.5px;color:var(--text);font-weight:550;}
+  .toggle-list{display:flex;flex-direction:column;}
+  .toggle-list .toggle{border-bottom:1px solid rgba(120,120,130,.12);}
+  .toggle-list .toggle:last-child{border-bottom:none;}
+
+  .payload-check{
+    display:flex;align-items:center;gap:11px;padding:13px 14px;
+    background:rgba(255,255,255,.32); border:1px solid rgba(255,255,255,.6);
+    border-radius:var(--r-md); margin-bottom:8px; cursor:pointer; transition:all .2s ease;
+  }
+  .payload-check:hover{background:rgba(255,255,255,.5);}
+  .payload-check.on{background:linear-gradient(135deg,rgba(10,132,255,.1),rgba(94,92,230,.1)); border-color:rgba(94,92,230,.35);}
+  .payload-check input{display:none;}
+  .payload-check .pi{
+    width:34px;height:34px;border-radius:10px;flex:none;
+    background:linear-gradient(135deg,rgba(10,132,255,.16),rgba(94,92,230,.16));
+    display:flex;align-items:center;justify-content:center;color:var(--accent-2);
+  }
+  .payload-check .pi svg{width:17px;height:17px;}
+  .payload-check .pt{flex:1;font-size:13.5px;font-weight:650;color:var(--text);}
+  .payload-check .pcheck{
+    width:22px;height:22px;border-radius:50%;border:2px solid rgba(120,120,130,.35);flex:none;
+    display:flex;align-items:center;justify-content:center;transition:all .2s ease;
+  }
+  .payload-check.on .pcheck{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;}
+  .payload-check .pcheck svg{width:12px;height:12px;color:#fff;opacity:0;transition:opacity .15s ease;}
+  .payload-check.on .pcheck svg{opacity:1;}
+
+  .payload-fields{display:none;padding:14px 4px 4px;}
+  .payload-fields.show{display:block;animation:rise .3s ease;}
+
+  .signed-success{display:none;margin-top:12px;text-align:center;font-size:13px;font-weight:750;color:#22c55e;}
+  .signed-success.show{display:block;animation:rise .25s ease;}
+  button.primary{
+    width:100%; margin-top:20px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#fff; border:none;
+    padding:15px 18px; font-family:var(--font); font-weight:750; font-size:14.5px;
+    border-radius:var(--r-pill); cursor:pointer;
+    box-shadow:0 8px 20px rgba(94,92,230,.32), 0 1px 0 rgba(255,255,255,.5) inset;
+    transition:transform .15s ease, box-shadow .15s ease;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  button.primary svg{width:16px;height:16px;}
+  button.primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 26px rgba(94,92,230,.4);}
+  button.primary:active:not(:disabled){transform:translateY(0);}
+  button.primary:disabled{opacity:.5;cursor:default;box-shadow:none;}
+  button.primary.danger{background:linear-gradient(135deg,#ff6b6b,var(--danger));box-shadow:0 8px 20px rgba(255,59,48,.3), 0 1px 0 rgba(255,255,255,.5) inset;}
+  button.primary.secondary{background:rgba(255,255,255,.55);color:var(--text);border:1px solid rgba(255,255,255,.9);box-shadow:none;}
+
+  .status{margin-top:12px;font-size:12.5px;color:var(--text-dim);min-height:16px;white-space:pre-wrap;line-height:1.5;}
+  .status.ok{color:var(--success);font-weight:650;}
+  .status.err{color:var(--danger);font-weight:650;}
+
+  .result{display:none;padding:8px 6px 6px;}
+  .result.show{display:block;animation:rise .5s cubic-bezier(.22,1,.36,1);}
+
+  /* file / app icon preview */
+  .file-icon-row{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .file-icon{
+    width:58px;height:58px;border-radius:15px;flex:none;
+    background:linear-gradient(150deg,#8b8f98,#5b5f68);
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    box-shadow:0 6px 16px rgba(0,0,0,.22), 0 1px 0 rgba(255,255,255,.25) inset;
+    position:relative;
+  }
+  .file-icon svg{width:28px;height:28px;}
+  .file-icon.verified{background:linear-gradient(150deg,#38c76a,#1f9c50);}
+  .file-icon .check{
+    position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;
+    background:var(--success);border:2.5px solid #f4f6fa;display:flex;align-items:center;justify-content:center;
+  }
+  .file-icon .check svg{width:11px;height:11px;color:#fff;}
+  .file-meta{min-width:0;}
+  .file-meta .fname{font-size:14.5px;font-weight:750;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .file-meta .fsub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+  .stamp{
+    width:90px;height:90px;border-radius:50%;margin:2px auto 16px;
+    background:conic-gradient(from 220deg, var(--accent-2), var(--accent), var(--accent-3), var(--accent-2));
+    padding:3px; box-shadow:0 10px 30px rgba(94,92,230,.35);
+    animation:stampin .55s cubic-bezier(.2,1.4,.4,1);
+  }
+  .stamp-inner{width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,.85);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;}
+  .stamp-inner svg{width:20px;height:20px;color:var(--success);}
+  .stamp-inner span{font-size:10px;font-weight:750;color:var(--text);padding:0 10px;text-align:center;line-height:1.2;}
+  @keyframes stampin{from{transform:scale(1.5) rotate(10deg);opacity:0;}to{transform:scale(1) rotate(0);opacity:1;}}
+
+  .result h3{font-size:19px;font-weight:750;margin:0 0 4px;letter-spacing:-.01em;text-align:center;}
+  .result > p.desc{color:var(--text-dim);font-size:13px;margin:0 0 18px;line-height:1.5;text-align:center;}
+
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+  .meta .item{background:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.7);border-radius:var(--r-md);padding:10px 12px;}
+  .meta .item.wide{grid-column:1 / -1;}
+  .meta .item .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);font-weight:750;margin-bottom:3px;}
+  .meta .item .v{font-size:12.5px;color:var(--text);font-weight:650;word-break:break-word;}
+
+  .export-grid{display:flex;flex-direction:column;gap:9px;}
+  a.download, button.dl{
+    display:flex;align-items:center;gap:12px;text-decoration:none;
+    background:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.85);
+    padding:13px 15px;border-radius:var(--r-lg); font-family:var(--font); cursor:pointer;
+    transition:all .2s ease; width:100%;
+  }
+  a.download:hover, button.dl:hover{background:rgba(255,255,255,.75); transform:translateY(-1px);}
+  a.download .dicon, button.dl .dicon{
+    width:36px;height:36px;border-radius:10px;flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:flex;align-items:center;justify-content:center;color:#fff;
+  }
+  a.download .dicon svg, button.dl .dicon svg{width:17px;height:17px;}
+  a.download.secondary .dicon, button.dl.secondary .dicon{background:linear-gradient(135deg,#8b8f98,#5b5f68);}
+  a.download .dt, button.dl .dt{text-align:left;flex:1;min-width:0;}
+  a.download .dtitle, button.dl .dtitle{font-size:13.5px;font-weight:700;color:var(--text);}
+  a.download .dsub, button.dl .dsub{font-size:11px;color:var(--text-faint);margin-top:1px;}
+  a.download .arrow, button.dl .arrow{color:var(--text-faint);flex:none;}
+  a.download .arrow svg, button.dl .arrow svg{width:16px;height:16px;}
+
+  .verify-badge{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:var(--r-pill);font-size:12.5px;font-weight:750;margin-bottom:16px;}
+  .verify-badge.ok{background:rgba(34,178,90,.14);color:var(--success);}
+  .verify-badge.bad{background:rgba(255,59,48,.14);color:var(--danger);}
+  .verify-badge.warn{background:rgba(255,159,10,.16);color:var(--warn);}
+  .verify-badge svg{width:15px;height:15px;}
+
+  .codebox{
+    text-align:left; background:rgba(28,28,30,.92); color:#e6e6ea; border-radius:var(--r-md);
+    padding:14px 16px; font-family:var(--mono); font-size:11.5px; line-height:1.6;
+    max-height:220px; overflow:auto; white-space:pre-wrap; word-break:break-word;
+    margin:6px 0 18px; border:1px solid rgba(255,255,255,.08);
+  }
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+  button.ghost{
+    background:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.8); color:var(--text);
+    padding:13px 22px; font-family:var(--font);font-weight:700;font-size:13.5px;
+    border-radius:var(--r-pill); cursor:pointer; display:inline-flex;align-items:center;gap:7px;
+  }
+  button.ghost svg{width:15px;height:15px;}
+  button.ghost:hover{background:rgba(255,255,255,.72);}
+
+  .note{
+    font-size:12px;color:var(--text-dim);line-height:1.65;margin-top:6px;
+    background:rgba(255,255,255,.35); border:1px solid rgba(255,255,255,.6);
+    border-radius:var(--r-lg); padding:16px 18px;
+  }
+  .note b{color:var(--text);}
+  .note.tip{background:linear-gradient(135deg,rgba(10,132,255,.08),rgba(94,92,230,.08));border-color:rgba(94,92,230,.2);}
+
+  @media (max-width:480px){
+    h1{font-size:25px;}
+    .meta{grid-template-columns:1fr;}
+    .row2{grid-template-columns:1fr;}
+  }
+
+  /* ================= KEY LOGIN GATE ================= */
+  .login-gate{
+    position:fixed; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center;
+    padding:20px; background:rgba(238,241,247,.72); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  }
+  .login-gate.hidden{display:none;}
+  .login-card{
+    width:min(460px,100%); padding:28px; border:1px solid var(--glass-border);
+    border-radius:var(--r-xl); background:rgba(255,255,255,.78); box-shadow:0 24px 70px rgba(31,38,52,.20);
+  }
+  .login-logo{font-size:38px;margin-bottom:8px}
+  .login-card h2{margin:0 0 7px;font-size:27px}
+  .login-card p{margin:0 0 22px;color:var(--text-dim);line-height:1.55}
+  .device-row{display:flex;gap:8px;align-items:center}
+  .device-row input{flex:1;min-width:0;font-family:var(--mono);font-size:11px;letter-spacing:.02em}
+  .login-foot{margin-top:13px;text-align:center;color:var(--text-faint);font-size:12px}
+  body.login-locked{overflow:hidden}
+</style>
+</head>
+<body>
+<div class="bg"><span></span><span></span><span></span><span></span></div>
+<div class="grain"></div>
+
+
+<!-- ================= KEY LOGIN GATE ================= -->
+<div id="loginGate" class="login-gate" aria-modal="true" role="dialog">
+  <div class="login-card">
+    <div class="login-logo">🔐</div>
+    <h2>Đăng nhập Key</h2>
+    <p>Nhập Key hợp lệ để truy cập toàn bộ công cụ.</p>
+
+    <label>Device ID</label>
+    <div class="device-row">
+      <input type="text" id="loginDeviceId" readonly>
+      <button class="ghost" id="copyDeviceIdBtn" type="button">Sao chép</button>
+    </div>
+
+    <label>Key</label>
+    <input type="text" id="licenseKeyInput" autocomplete="off" autocapitalize="characters"
+           placeholder="Nhập Key của bạn">
+
+    <button class="primary" id="activateKeyBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+      Đăng nhập
+    </button>
+    <div class="status" id="licenseStatus"></div>
+    <div class="login-foot">Device ID được giữ ổn định trên trình duyệt này.</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="badge"><span class="dot"></span>Local · chạy hoàn toàn trong trình duyệt</div>
+    <h1>Tạo &amp; <span>ký</span> hồ sơ cấu hình</h1>
+    <div class="sub">Dựng file <b>.mobileconfig</b> từ các payload có sẵn, ký bằng CMS/PKCS#7, tải chứng chỉ đi kèm — hoặc gỡ ký để xem lại nội dung gốc. Người ký mặc định: <b style="color:#5e5ce6">Levizioscheatz</b>.</div>
+  </header>
+
+  <div class="segment">
+    <button class="active" data-view="build">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      Tạo hồ sơ
+    </button>
+    <button data-view="sign">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+      Ký
+    </button>
+    <button data-view="unsign">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+      Phá ký
+    </button>
+    <button data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.8 1.8-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V22h-2.55v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.8-1.8.06-.06A1.7 1.7 0 0 0 8.1 17a1.7 1.7 0 0 0-1.56-1.03H6.45v-2.55h.09A1.7 1.7 0 0 0 8.1 12.4a1.7 1.7 0 0 0-.34-1.88L7.7 10.46l1.8-1.8.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56V7.4h2.55v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.8 1.8-.06.06A1.7 1.7 0 0 0 19.4 12a1.7 1.7 0 0 0 1.56 1.03h.09v2.55h-.09A1.7 1.7 0 0 0 19.4 15z"/></svg>
+      Setting
+    </button>
+  </div>
+
+  <div class="builder-pill show" id="licPill">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8V6a5 5 0 0 1 10 0v2"/></svg>
+    <span id="licPillText">Chưa đăng nhập — hãy nhập Key để tiếp tục.</span>
+  </div>
+
+  <!-- ================= TẠO HỒ SƠ ================= -->
+  <div class="view active" id="view-build">
+    <div class="card">
+      <h2><span class="num">1</span>Thông tin chung</h2>
+      <label>Tên hiển thị hồ sơ</label>
+      <input type="text" id="genName" value="Hồ sơ cấu hình của Levizioscheatz">
+      <label>Mô tả</label>
+      <input type="text" id="genDesc" value="Được tạo bằng trình tạo hồ sơ Levizioscheatz">
+      <div class="row2">
+        <div>
+          <label>Tổ chức</label>
+          <input type="text" id="genOrg" value="Levizioscheatz">
+        </div>
+        <div>
+          <label>Định danh (identifier)</label>
+          <input type="text" id="genIdentifier" value="com.levizioscheatz.profile">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span>Chọn payload<small id="payloadCount">0 đã chọn</small></h2>
+
+      <label class="payload-check" data-payload="wifi">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg></div>
+        <div class="pt">Wi-Fi</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-wifi">
+        <label>Tên mạng (SSID)</label>
+        <input type="text" id="wifiSsid" placeholder="Tên Wi-Fi">
+        <label>Kiểu mã hoá</label>
+        <select id="wifiEnc">
+          <option value="None">Không mật khẩu</option>
+          <option value="WPA" selected>WPA / WPA2</option>
+          <option value="WEP">WEP</option>
+          <option value="Any">Tự động</option>
+        </select>
+        <div id="wifiPassWrap">
+          <label>Mật khẩu</label>
+          <input type="password" id="wifiPass" placeholder="Mật khẩu Wi-Fi">
+        </div>
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="wifiHidden"><span class="track"><span class="thumb"></span></span><span class="tlabel">Mạng ẩn</span></label>
+        <label class="toggle"><input type="checkbox" id="wifiAutojoin" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Tự động kết nối</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="vpn">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="pt">VPN (L2TP)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-vpn">
+        <label>Tên kết nối</label>
+        <input type="text" id="vpnName" placeholder="VD: Văn phòng">
+        <label>Máy chủ (server)</label>
+        <input type="text" id="vpnServer" placeholder="vpn.example.com">
+        <div class="row2">
+          <div>
+            <label>Tài khoản</label>
+            <input type="text" id="vpnUser" placeholder="username">
+          </div>
+          <div>
+            <label>Khoá chia sẻ IPSec</label>
+            <input type="password" id="vpnSecret" placeholder="shared secret">
+          </div>
+        </div>
+      </div>
+
+      <label class="payload-check" data-payload="restrictions">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></div>
+        <div class="pt">Giới hạn thiết bị</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-restrictions">
+        <div class="toggle-list" id="restrictionsList"></div>
+      </div>
+
+      <label class="payload-check" data-payload="webclip">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <div class="pt">Web Clip</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-webclip">
+        <label>Nhãn hiển thị</label>
+        <input type="text" id="clipLabel" placeholder="VD: Trang nội bộ">
+        <label>Địa chỉ URL</label>
+        <input type="url" id="clipUrl" placeholder="https://...">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="clipFullscreen"><span class="track"><span class="thumb"></span></span><span class="tlabel">Toàn màn hình</span></label>
+        <label class="toggle"><input type="checkbox" id="clipRemovable" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Cho phép gỡ</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="passcode">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="pt">Chính sách mã khoá</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-passcode">
+        <div class="row2">
+          <div>
+            <label>Độ dài tối thiểu</label>
+            <input type="number" id="pcMinLen" value="6" min="1" max="16">
+          </div>
+          <div>
+            <label>Số lần sai tối đa</label>
+            <input type="number" id="pcMaxFail" value="10" min="1" max="20">
+          </div>
+        </div>
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="pcAllowSimple" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Cho phép mã đơn giản</span></label>
+        <label class="toggle"><input type="checkbox" id="pcAlphanumeric"><span class="track"><span class="thumb"></span></span><span class="tlabel">Bắt buộc chữ + số</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="email">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg></div>
+        <div class="pt">Email (IMAP/POP)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-email">
+        <label>Tên tài khoản</label>
+        <input type="text" id="emailDesc" placeholder="VD: Email công ty">
+        <label>Địa chỉ email</label>
+        <input type="text" id="emailAddress" placeholder="ten@congty.com">
+        <div class="row2">
+          <div><label>Loại</label>
+            <select id="emailType"><option value="EmailTypeIMAP">IMAP</option><option value="EmailTypePOP">POP</option></select>
+          </div>
+          <div><label>Tài khoản đăng nhập</label><input type="text" id="emailUser" placeholder="username"></div>
+        </div>
+        <label>Máy chủ gửi đến (incoming)</label>
+        <input type="text" id="emailIncoming" placeholder="imap.congty.com">
+        <label>Máy chủ gửi đi (outgoing)</label>
+        <input type="text" id="emailOutgoing" placeholder="smtp.congty.com">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="emailSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="exchange">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg></div>
+        <div class="pt">Exchange ActiveSync</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-exchange">
+        <label>Máy chủ Exchange</label>
+        <input type="text" id="exchHost" placeholder="mail.congty.com">
+        <div class="row2">
+          <div><label>Email</label><input type="text" id="exchEmail" placeholder="ten@congty.com"></div>
+          <div><label>Tài khoản</label><input type="text" id="exchUser" placeholder="username"></div>
+        </div>
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="exchSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="ldap">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></div>
+        <div class="pt">LDAP</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-ldap">
+        <label>Tên hiển thị</label>
+        <input type="text" id="ldapDesc" placeholder="VD: Danh bạ công ty">
+        <div class="row2">
+          <div><label>Máy chủ</label><input type="text" id="ldapHost" placeholder="ldap.congty.com"></div>
+          <div><label>Tài khoản</label><input type="text" id="ldapUser" placeholder="username"></div>
+        </div>
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="ldapSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="caldav">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+        <div class="pt">CalDAV (Lịch)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-caldav">
+        <label>Tên hiển thị</label>
+        <input type="text" id="caldavDesc" placeholder="VD: Lịch công ty">
+        <div class="row2">
+          <div><label>Máy chủ</label><input type="text" id="caldavHost" placeholder="caldav.congty.com"></div>
+          <div><label>Cổng</label><input type="number" id="caldavPort" value="443"></div>
+        </div>
+        <label>Tài khoản</label>
+        <input type="text" id="caldavUser" placeholder="username">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="caldavSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="carddav">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div class="pt">CardDAV (Danh bạ)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-carddav">
+        <label>Tên hiển thị</label>
+        <input type="text" id="carddavDesc" placeholder="VD: Danh bạ công ty">
+        <div class="row2">
+          <div><label>Máy chủ</label><input type="text" id="carddavHost" placeholder="carddav.congty.com"></div>
+          <div><label>Cổng</label><input type="number" id="carddavPort" value="443"></div>
+        </div>
+        <label>Tài khoản</label>
+        <input type="text" id="carddavUser" placeholder="username">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="carddavSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="subcal">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/><path d="M12 14l2 2 4-4" /></svg></div>
+        <div class="pt">Lịch đăng ký (subscribed)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-subcal">
+        <label>Tên hiển thị</label>
+        <input type="text" id="subcalDesc" placeholder="VD: Lịch nghỉ lễ">
+        <label>URL lịch (.ics)</label>
+        <input type="text" id="subcalUrl" placeholder="https://congty.com/lich.ics">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="subcalSSL" checked><span class="track"><span class="thumb"></span></span><span class="tlabel">Dùng SSL</span></label>
+      </div>
+
+      <label class="payload-check" data-payload="proxy">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 0 20 15.3 15.3 0 0 1 0-20z"/></svg></div>
+        <div class="pt">Proxy HTTP toàn cục</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-proxy">
+        <div class="row2">
+          <div><label>Máy chủ proxy</label><input type="text" id="proxyServer" placeholder="proxy.congty.com"></div>
+          <div><label>Cổng</label><input type="number" id="proxyPort" value="8080"></div>
+        </div>
+      </div>
+
+      <label class="payload-check" data-payload="apn">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg></div>
+        <div class="pt">APN di động (Cellular)</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-apn">
+        <label>Tên điểm truy cập (APN)</label>
+        <input type="text" id="apnName" placeholder="internet">
+        <div class="row2">
+          <div><label>Tài khoản</label><input type="text" id="apnUser" placeholder="(tuỳ chọn)"></div>
+          <div><label>Mật khẩu</label><input type="password" id="apnPass" placeholder="(tuỳ chọn)"></div>
+        </div>
+      </div>
+
+      <label class="payload-check" data-payload="airprint">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></div>
+        <div class="pt">AirPrint</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-airprint">
+        <div class="row2">
+          <div><label>Địa chỉ IP máy in</label><input type="text" id="airprintIp" placeholder="192.168.1.50"></div>
+          <div><label>Cổng</label><input type="number" id="airprintPort" value="631"></div>
+        </div>
+        <label>Resource path</label>
+        <input type="text" id="airprintPath" value="/printers/mayin">
+      </div>
+
+      <label class="payload-check" data-payload="singleapp">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><rect x="9" y="9" width="6" height="6"/></svg></div>
+        <div class="pt">Chế độ một ứng dụng</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-singleapp">
+        <label>Bundle ID ứng dụng</label>
+        <input type="text" id="singleAppId" placeholder="com.apple.mobilesafari">
+      </div>
+
+      <label class="payload-check" data-payload="lockmsg">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="16" r="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <div class="pt">Thông báo màn hình khoá</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-lockmsg">
+        <label>Nội dung hiển thị ở màn hình khoá</label>
+        <input type="text" id="lockFootnote" placeholder="VD: Thiết bị thuộc về Levizioscheatz">
+      </div>
+
+      <label class="payload-check" data-payload="dns">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+        <div class="pt">DNS quản lý</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-dns">
+        <label>Máy chủ DNS (cách nhau bằng dấu phẩy)</label>
+        <input type="text" id="dnsServers" placeholder="1.1.1.1, 8.8.8.8">
+        <label>Tên miền áp dụng (tuỳ chọn, cách nhau bằng dấu phẩy)</label>
+        <input type="text" id="dnsDomains" placeholder="congty.com">
+      </div>
+
+      <label class="payload-check" data-payload="cert">
+        <input type="checkbox">
+        <div class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <div class="pt">Chứng chỉ đính kèm</div>
+        <div class="pcheck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </label>
+      <div class="payload-fields" id="fields-cert">
+        <label>Tệp chứng chỉ (.cer / .der)</label>
+        <div class="drop" id="certPayloadBox">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="text"><div class="title" id="certPayloadName">Chọn tệp chứng chỉ</div><div class="hint">.cer hoặc .der (DER)</div></div>
+        </div>
+        <input type="file" id="certPayloadFile" accept=".cer,.der,.crt">
+        <label class="toggle" style="margin-top:12px"><input type="checkbox" id="certIsRoot"><span class="track"><span class="thumb"></span></span><span class="tlabel">Cài làm CA gốc tin cậy</span></label>
+      </div>
+
+      <button class="primary" id="buildBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Tạo hồ sơ
+      </button>
+      <div class="status" id="buildStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2><span class="num">3</span>Custom Payload Data<small>Nâng cao · tuỳ chọn</small></h2>
+      <div class="hint-text" style="margin:0 0 12px">Dán một hoặc nhiều khối payload dạng plist XML (mỗi khối là một <code>&lt;dict&gt;…&lt;/dict&gt;</code> hợp lệ theo chuẩn Apple Configuration Profile). Nội dung này sẽ được chèn thêm vào mảng <code>PayloadContent</code> của hồ sơ, cùng với các payload đã chọn ở trên. Không tự giới hạn vào một loại payload cụ thể — nhưng phải là XML/plist hợp lệ, được kiểm tra trước khi dùng để tạo hồ sơ.</div>
+      <label>Nội dung payload tuỳ chỉnh (XML)</label>
+      <textarea id="customPayloadXml" rows="8" placeholder="&lt;dict&gt;
+  &lt;key&gt;PayloadType&lt;/key&gt;&lt;string&gt;com.apple.something&lt;/string&gt;
+  &lt;key&gt;PayloadIdentifier&lt;/key&gt;&lt;string&gt;com.levizioscheatz.custom.1&lt;/string&gt;
+  &lt;key&gt;PayloadUUID&lt;/key&gt;&lt;string&gt;...&lt;/string&gt;
+  &lt;key&gt;PayloadVersion&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;
+&lt;/dict&gt;" style="width:100%;font-family:var(--mono);font-size:12px;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.85);border-radius:var(--r-md);padding:12px 14px;resize:vertical;outline:none;"></textarea>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="primary secondary" id="validateCustomPayloadBtn" type="button" style="margin-top:0;flex:1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+          Kiểm tra XML
+        </button>
+        <button class="primary secondary" id="clearCustomPayloadBtn" type="button" style="margin-top:0;flex:none;padding-left:16px;padding-right:16px;">Xoá</button>
+      </div>
+      <div class="status" id="customPayloadStatus"></div>
+    </div>
+
+    <div class="card result" id="buildResult">
+      <div class="file-icon-row">
+        <div class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div class="file-meta">
+          <div class="fname" id="buildFileName">HoSo.mobileconfig</div>
+          <div class="fsub" id="buildFileSub">Chưa ký · dạng plist XML</div>
+        </div>
+      </div>
+      <label style="text-align:left">Xem trước plist</label>
+      <div class="codebox" id="buildPreview"></div>
+      <div class="export-grid">
+        <a class="download secondary" id="buildDownload">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+          <div class="dt"><div class="dtitle">Tải về (chưa ký)</div><div class="dsub">Lưu file .mobileconfig thô</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </a>
+        <button class="dl secondary" id="buildZipBtn">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg></div>
+          <div class="dt"><div class="dtitle">Tải về dạng ZIP</div><div class="dsub">Gói .mobileconfig + hướng dẫn cài</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>Mẹo:</b> có thể vẫn dùng công cụ này chỉ để soạn nhanh một hồ sơ, sau đó bấm <b>"Dùng hồ sơ này để ký"</b> để chuyển thẳng sang bước Ký mà không cần tải lên lại.
+    </div>
+    <div class="note">
+      <b>Phạm vi hỗ trợ:</b> đã có 18 payload phổ biến nhất (Wi-Fi, VPN, Giới hạn, Web Clip, Mã khoá, Email, Exchange, LDAP, CalDAV, CardDAV, Lịch đăng ký, Proxy, APN, AirPrint, Chế độ một ứng dụng, Thông báo khoá màn hình, DNS, Chứng chỉ đính kèm). Một số payload nâng cao của Apple cần tài nguyên nhị phân hoặc giao thức đăng ký riêng (Font, SCEP, bố cục màn hình chính, cấu hình ứng dụng quản lý, Single Sign-On) chưa được đưa vào — báo mình nếu bạn cần thêm loại nào cụ thể.
+    </div>
+  </div>
+
+  <!-- ================= KÝ ================= -->
+  <div class="view" id="view-sign">
+    <div class="card">
+      <h2><span class="num">1</span>Hồ sơ cấu hình</h2>
+      <div class="drop" id="configBox">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="text">
+          <div class="title" id="configName">Chọn tệp .mobileconfig cần ký</div>
+          <div class="hint">Chỉ chọn tệp .mobileconfig từ thiết bị</div>
+        </div>
+      </div>
+      <input type="file" id="configFile" accept=".mobileconfig,.xml,text/xml">
+    </div>
+
+    <div class="card">
+      <h2><span class="num">2</span>Chứng chỉ ký</h2>
+      <div class="modes">
+        <button class="modebtn active" data-mode="self">Tự tạo</button>
+        <button class="modebtn" data-mode="ca">CA riêng · Verified</button>
+        <button class="modebtn" data-mode="p12">.p12 / .pfx</button>
+        <button class="modebtn" data-mode="pem">PEM</button>
+      </div>
+
+      <div class="mode-panel active" data-panel="self">
+        <div class="mode-desc">Chứng chỉ tự ký, tạo tức thì. Thiết bị sẽ hiện hồ sơ ở trạng thái <b>Chưa xác minh</b> cho tới khi bạn cài chứng chỉ này vào danh sách tin cậy.</div>
+        <label>Tên người ký (Common Name)</label>
+        <input type="text" id="signerName" value="Levizioscheatz">
+        <div class="row2">
+          <div><label>Tổ chức</label><input type="text" id="signerOrg" value="Levizioscheatz"></div>
+          <div><label>Hiệu lực (năm)</label><input type="number" id="signerYears" value="10" min="1" max="30"></div>
+        </div>
+      </div>
+
+      <div class="mode-panel" data-panel="ca">
+        <div class="mode-desc">Tạo một <b>CA gốc riêng</b> + chứng chỉ ký con. Cài hồ sơ CA gốc <b>một lần duy nhất</b> (bước này không thể bỏ qua — đó là cơ chế bảo mật của iOS), sau đó mọi hồ sơ ký bằng CA này sẽ tự động hiện <b>Đã xác minh</b> mà không cần lặp lại.</div>
+        <label>Tên CA gốc</label>
+        <input type="text" id="caName" value="Levizioscheatz Root CA">
+        <div class="row2">
+          <div><label>Tên người ký (leaf)</label><input type="text" id="caLeafName" value="Levizioscheatz"></div>
+          <div><label>Tổ chức</label><input type="text" id="caOrg" value="Levizioscheatz"></div>
+        </div>
+        <label>Hiệu lực (năm)</label>
+        <input type="number" id="caYears" value="10" min="1" max="30">
+      </div>
+
+      <div class="mode-panel" data-panel="p12">
+        <div class="mode-desc">Dùng chứng chỉ thật đã có sẵn — nếu đây là chứng chỉ do một CA được thiết bị tin cậy phát hành, hồ sơ sẽ hiện Đã xác minh ngay lập tức.</div>
+        <label>Tệp chứng chỉ (.p12 / .pfx)</label>
+        <div class="drop" id="p12Box">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="text"><div class="title" id="p12Name">Chọn tệp .p12</div><div class="hint">Chứng chỉ + khoá riêng đóng gói sẵn</div></div>
+        </div>
+        <input type="file" id="p12File" accept=".p12,.pfx">
+        <label>Mật khẩu chứng chỉ</label>
+        <input type="password" id="p12Pass" placeholder="Mật khẩu .p12">
+      </div>
+
+      <div class="mode-panel" data-panel="pem">
+        <label>Chứng chỉ PEM (.pem / .crt)</label>
+        <div class="drop" id="pemCertBox">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="text"><div class="title" id="pemCertName">Chọn tệp chứng chỉ</div><div class="hint">.pem hoặc .crt</div></div>
+        </div>
+        <input type="file" id="pemCertFile" accept=".pem,.crt">
+        <label>Khoá riêng PEM (chưa mã hoá)</label>
+        <div class="drop" id="pemKeyBox">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+          <div class="text"><div class="title" id="pemKeyName">Chọn tệp khoá riêng</div><div class="hint">.pem hoặc .key</div></div>
+        </div>
+        <input type="file" id="pemKeyFile" accept=".pem,.key">
+      </div>
+
+      <button class="primary" id="signBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+        Ký hồ sơ
+      </button>
+      <div class="status" id="signStatus"></div>
+      <div id="signedSuccessText" class="signed-success">✓ Đã ký thành công</div>
+    </div>
+
+    <div class="card result" id="signResult">
+      <div class="file-icon-row">
+        <div class="file-icon verified" id="signFileIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+        <div class="file-meta">
+          <div class="fname" id="metaFile">HoSo.signed.mobileconfig</div>
+          <div class="fsub" id="metaSize">—</div>
+        </div>
+      </div>
+      <h3>Đã ký xong</h3>
+      <p class="desc" id="resultDesc">Hồ sơ được đóng gói dưới định dạng CMS (PKCS#7 signed data).</p>
+      <div class="meta">
+        <div class="item"><div class="k">Ký chứng nhận bởi</div><div class="v" id="metaSigner">—</div></div>
+        <div class="item"><div class="k">Tổ chức</div><div class="v" id="metaOrg">—</div></div>
+        <div class="item"><div class="k">Thuật toán</div><div class="v">SHA-256 / RSA 2048</div></div>
+        <div class="item"><div class="k">Hiệu lực đến</div><div class="v" id="metaExpiry">—</div></div>
+      </div>
+      <label style="text-align:left">Xuất tệp</label>
+      <div class="export-grid" id="exportGrid">
+        <a class="download" id="downloadLink">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+          <div class="dt"><div class="dtitle">Hồ sơ đã ký (.mobileconfig)</div><div class="dsub" id="downloadSub">Cài trực tiếp vào thiết bị</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </a>
+        <button class="dl secondary" id="shareSignedBtn" type="button" style="display:none">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></div>
+          <div class="dt"><div class="dtitle">Chia sẻ / Lưu vào Tệp</div><div class="dsub">Dùng nếu nút Tải về không mở được ứng dụng Tệp</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </button>
+        <a class="download secondary" id="certDownload">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div class="dt"><div class="dtitle">Chứng chỉ đã dùng để ký (.cer)</div><div class="dsub">Xem hoặc cài thủ công nếu cần</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </a>
+        <a class="download secondary" id="caDownload" style="display:none">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div class="dt"><div class="dtitle">Cài CA gốc (một lần duy nhất)</div><div class="dsub">Bắt buộc để các hồ sơ sau hiện Verified</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </a>
+        <button class="dl secondary" id="signZipBtn">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg></div>
+          <div class="dt"><div class="dtitle">Tải tất cả dạng ZIP</div><div class="dsub" id="signZipSub">Hồ sơ + chứng chỉ + hướng dẫn cài</div></div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PHÁ KÝ ================= -->
+  <div class="view" id="view-unsign">
+    <div class="card">
+      <h2><span class="num">1</span>Hồ sơ đã ký</h2>
+      <div class="drop" id="signedBox">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <div class="text">
+          <div class="title" id="signedName">Chọn tệp .mobileconfig đã ký (PKCS#7)</div>
+          <div class="hint">Công cụ sẽ đọc chữ ký, kiểm tra và gỡ ra plist gốc</div>
+        </div>
+      </div>
+      <input type="file" id="signedFile" accept=".mobileconfig,.p7s,.der">
+
+      <button class="primary danger" id="unsignBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+        Phá ký
+      </button>
+      <div class="status" id="unsignStatus"></div>
+    </div>
+
+    <div class="card result" id="unsignResult">
+      <div class="verify-badge" id="verifyBadge"></div>
+      <h3>Đã gỡ chữ ký</h3>
+      <p class="desc" id="unsignDesc">Nội dung plist gốc đã được trích xuất khỏi phong bì PKCS#7.</p>
+
+      <div class="meta">
+        <div class="item"><div class="k">Ký bởi (CN)</div><div class="v" id="uSigner">—</div></div>
+        <div class="item"><div class="k">Tổ chức</div><div class="v" id="uOrg">—</div></div>
+        <div class="item"><div class="k">Hiệu lực từ</div><div class="v" id="uFrom">—</div></div>
+        <div class="item"><div class="k">Hiệu lực đến</div><div class="v" id="uTo">—</div></div>
+      </div>
+
+      <label style="text-align:left">Nội dung plist đã gỡ ký</label>
+      <div class="codebox" id="plistPreview"></div>
+
+      <div class="actions">
+        <a class="download" id="unsignDownload" style="width:auto;">
+          <div class="dicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+          <div class="dt"><div class="dtitle">Tải bản chưa ký</div></div>
+        </a>
+        <button class="ghost" id="unsignZipBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+          Tải ZIP
+        </button>
+        <button class="ghost" id="copyPlistBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Sao chép nội dung
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SETTING ================= -->
+  <div class="view" id="view-settings">
+    <div class="card">
+      <h2><span class="num">1</span>Trạng thái Key</h2>
+      <div class="meta">
+        <div class="item"><div class="k">Loại key</div><div class="v" id="settingTypeLabel">—</div></div>
+        <div class="item"><div class="k">Thiết bị</div><div class="v" id="settingDeviceId">—</div></div>
+        <div class="item wide"><div class="k">Số Giờ Còn Lại</div><div class="v" id="settingCountdown" style="font-family:var(--mono);font-size:15px;">—</div></div>
+        <div class="item wide"><div class="k">Hết hạn</div><div class="v" id="settingExpiry">—</div></div>
+      </div>
+      <div class="status" id="settingStatus"></div>
+      <button class="primary danger" id="settingLogoutKeyBtn" type="button">Đăng xuất Key</button>
+    </div>
+    <div class="note tip">
+      <b>Device ID:</b> hệ thống tạo một ID ổn định từ các đặc điểm của trình duyệt/thiết bị và lưu lại. ID này được dùng khi đăng nhập API để cùng một môi trường không bị cấp một ID mới mỗi lần mở trang.
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function setStatus(el, msg, cls){ el.textContent = msg; el.className = 'status' + (cls ? ' '+cls : ''); }
+function fmtBytes(n){ if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(1)+' KB'; return (n/1024/1024).toFixed(2)+' MB'; }
+function fmtDate(d){ if(!d) return '—'; try{ return d.toLocaleDateString('vi-VN'); }catch(e){ return d.toString(); } }
+function xmlEscape(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+function uuidv4(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+    return v.toString(16);
+  }).toUpperCase();
+}
+function b(v){ return v ? '<true/>' : '<false/>'; }
+function readAsText(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsText(file); }); }
+function readAsArrayBuffer(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsArrayBuffer(file); }); }
+function byteStringToUint8Array(str){ const arr=new Uint8Array(str.length); for(let i=0;i<str.length;i++) arr[i]=str.charCodeAt(i)&0xff; return arr; }
+
+/* ================= LICENSE / KEY API =================
+   Login gate + continuous key validation.
+   Backend contract: POST { apiKey, deviceId }.
+*/
+const LICENSE_API = 'https://appdemental.onrender.com/api/login';
+const SESSION_KEY = 'hgheius_license_session_v3';
+const DEVICE_KEY = 'hgheius_device_id_v3';
+const KEY_TYPE_LABEL = {
+  '1H':'1 giờ', '24H':'24 giờ', '7D':'7 ngày', '30D':'30 ngày', '365D':'365 ngày', 'LIFETIME':'Vĩnh viễn'
+};
+
+let licenseState = null;
+let countdownTimer = null;
+let validationTimer = null;
+let licenseBusy = false;
+let lastValidationAt = 0;
+
+function loadLicenseSession(){
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function saveLicenseSession(s){ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); }
+function clearLicenseSession(){
+  localStorage.removeItem(SESSION_KEY);
+  licenseState = null;
+}
+
+async function sha256Hex(text){
+  const buf = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+async function stableDeviceId(){
+  const cached = localStorage.getItem(DEVICE_KEY);
+  if(cached) return cached;
+  const nav = navigator;
+  const parts = [
+    nav.userAgent || '', nav.platform || '', nav.language || '',
+    Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+    String(screen.width || ''), String(screen.height || ''), String(screen.colorDepth || ''),
+    String(nav.hardwareConcurrency || ''), String(nav.deviceMemory || ''),
+    String(nav.maxTouchPoints || ''), String(window.devicePixelRatio || ''),
+    String(nav.vendor || '')
+  ];
+  const hash = await sha256Hex(parts.join('|'));
+  const id = 'DEVICE-' + hash.slice(0,24).toUpperCase();
+  localStorage.setItem(DEVICE_KEY,id);
+  return id;
+}
+
+async function prepareLoginDeviceId(){
+  const id = await stableDeviceId();
+  const el = $('loginDeviceId');
+  if(el) el.value = id;
+  return id;
+}
+
+function normalizeType(type){
+  const t=String(type||'').trim().toUpperCase();
+  return {'1D':'24H','1W':'7D','1M':'30D','1Y':'365D','FOREVER':'LIFETIME'}[t] || t;
+}
+
+function normalizeApiResult(data, requestedKey, deviceId){
+  const root=data && (data.data || data.result || data);
+  const keyObj=root && root.key && typeof root.key==='object' ? root.key : root;
+  const keyValue=typeof root?.key==='string' ? root.key :
+                 (typeof keyObj?.key==='string' ? keyObj.key : requestedKey);
+  const typeKey=normalizeType(root?.typeKey || keyObj?.typeKey || root?.type || keyObj?.type);
+  const maxDeviceIds=Number(root?.maxDeviceIds ?? keyObj?.maxDeviceIds ?? 0) || 0;
+  const deviceIds=Array.isArray(root?.deviceIds) ? root.deviceIds :
+                   (Array.isArray(keyObj?.deviceIds) ? keyObj.deviceIds : []);
+  let slot=deviceIds.find(x=>x && String(x.id)===String(deviceId));
+  if(!slot && (root?.deviceId || root?.startTime!=null || root?.expireTime!=null)){
+    slot={id:root.deviceId || deviceId,startTime:root.startTime ?? null,expireTime:root.expireTime ?? null};
+  }
+  if(!slot) slot={id:deviceId,startTime:null,expireTime:null};
+  return {
+    key:keyValue,typeKey,maxDeviceIds,deviceIds,
+    deviceId:String(slot.id || deviceId),
+    startTime:slot.startTime==null ? null : Number(slot.startTime),
+    expireTime:slot.expireTime==null ? null : Number(slot.expireTime),
+    raw:data
+  };
+}
+
+function apiMessage(data,fallback){
+  return data?.message || data?.error || data?.msg || fallback;
+}
+
+async function apiLogin(key,deviceId){
+  const response=await fetch(LICENSE_API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body:JSON.stringify({apiKey:key,deviceId})
+  });
+  let data=null;
+  try{ data=await response.json(); }catch(e){}
+  if(!response.ok){
+    const err=new Error(apiMessage(data,'API từ chối key ('+response.status+').'));
+    err.status=response.status; err.apiData=data;
+    throw err;
+  }
+  const result=normalizeApiResult(data,key,deviceId);
+  if(!result.key) throw new Error('API không trả về key hợp lệ.');
+  return result;
+}
+
+function hasValidAccess(){
+  const s=licenseState || loadLicenseSession();
+  if(!s) return false;
+  if(normalizeType(s.typeKey)==='LIFETIME') return true;
+  return Number(s.expireTime)>Date.now();
+}
+
+function formatRemaining(ms){
+  if(ms<=0) return '0 Ngày 0 Giờ 0 Phút 0 Giây';
+  let sec=Math.floor(ms/1000);
+  const days=Math.floor(sec/86400); sec%=86400;
+  const hours=Math.floor(sec/3600); sec%=3600;
+  const mins=Math.floor(sec/60); sec%=60;
+  return days+' Ngày '+hours+' Giờ '+mins+' Phút '+sec+' Giây';
+}
+
+function refreshCountdown(){
+  const s=licenseState || loadLicenseSession();
+  const out=$('settingCountdown');
+  if(out){
+    if(!s) out.textContent='Chưa đăng nhập';
+    else if(normalizeType(s.typeKey)==='LIFETIME' || !s.expireTime) out.textContent='Vĩnh viễn';
+    else {
+      const left=Number(s.expireTime)-Date.now();
+      out.textContent=formatRemaining(Math.max(0,left));
+      if(left<=0) forceLogout('Key đã hết hạn. Bạn đã được đăng xuất tự động.');
+    }
+  }
+}
+
+function renderSetting(){
+  const s=licenseState || loadLicenseSession();
+  if(!$('settingTypeLabel')) return;
+  $('settingTypeLabel').textContent=s ? (KEY_TYPE_LABEL[normalizeType(s.typeKey)] || s.typeKey || '—') : '—';
+  $('settingDeviceId').textContent=s?.deviceId || '—';
+  $('settingExpiry').textContent=!s ? '—' :
+    (normalizeType(s.typeKey)==='LIFETIME' || !s.expireTime ? 'Vĩnh viễn' :
+     new Date(Number(s.expireTime)).toLocaleString('vi-VN'));
+  refreshCountdown();
+}
+
+function refreshLicensePill(){
+  const el=$('licPillText'); if(!el) return;
+  const s=licenseState || loadLicenseSession();
+  if(!s){ el.textContent='Chưa đăng nhập — hãy nhập Key để tiếp tục.'; return; }
+  if(!hasValidAccess()){ el.textContent='Key đã hết hạn.'; return; }
+  const type=normalizeType(s.typeKey);
+  el.innerHTML='Key <b>'+(KEY_TYPE_LABEL[type]||type)+'</b> đang hoạt động — <b>'+
+    (type==='LIFETIME'?'Vĩnh viễn':formatRemaining(Math.max(0,Number(s.expireTime)-Date.now())))+'</b>.';
+}
+
+function showLoginGate(){
+  $('loginGate')?.classList.remove('hidden');
+  document.body.classList.add('login-locked');
+  prepareLoginDeviceId();
+}
+
+function hideLoginGate(){
+  $('loginGate')?.classList.add('hidden');
+  document.body.classList.remove('login-locked');
+}
+
+function forceLogout(message){
+  if(licenseBusy && message==='') return;
+  clearLicenseSession();
+  if(message) setStatus($('licenseStatus'),message,'err');
+  refreshLicensePill();
+  renderSetting();
+  showLoginGate();
+  // Always return the main UI to its first tab after forced logout.
+  const first=document.querySelector('.segment button[data-view="build"]');
+  if(first){
+    document.querySelectorAll('.segment button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    first.classList.add('active');
+    $('view-build')?.classList.add('active');
+  }
+}
+
+async function validateCurrentKey(){
+  const s=licenseState || loadLicenseSession();
+  if(!s?.key) return false;
+  const deviceId=await stableDeviceId();
+  const result=await apiLogin(s.key,deviceId);
+  const type=normalizeType(result.typeKey);
+  if(!KEY_TYPE_LABEL[type]) throw new Error('API trả về typeKey không được hỗ trợ: '+type);
+  if(type!=='LIFETIME' && (!result.expireTime || Number(result.expireTime)<=Date.now())){
+    throw new Error('Key đã hết hạn.');
+  }
+  // Make sure the API still recognizes this exact device slot.
+  if(result.deviceId && String(result.deviceId)!==String(deviceId)){
+    throw new Error('API trả về Device ID không khớp thiết bị hiện tại.');
+  }
+  licenseState={
+    key:result.key || s.key,typeKey:type,maxDeviceIds:result.maxDeviceIds,
+    deviceIds:result.deviceIds,deviceId:result.deviceId || deviceId,
+    startTime:result.startTime,expireTime:result.expireTime
+  };
+  saveLicenseSession(licenseState);
+  lastValidationAt=Date.now();
+  return true;
+}
+
+async function continuousKeyCheck(){
+  if(!hasValidAccess()){
+    if(licenseState || loadLicenseSession()) forceLogout('Key đã hết hạn. Bạn đã được đăng xuất tự động.');
+    return;
+  }
+  try{
+    await validateCurrentKey();
+    refreshLicensePill();
+    renderSetting();
+  }catch(err){
+    // Network errors do not immediately log the user out.
+    // A definitive API rejection/expiry does.
+    const status=Number(err.status||0);
+    const msg=String(err.message||'').toLowerCase();
+    if(status===401 || status===403 || msg.includes('hết hạn') || msg.includes('expired') ||
+       msg.includes('không hợp lệ') || msg.includes('invalid') || msg.includes('không tồn tại')){
+      forceLogout('Key không còn hợp lệ hoặc đã hết hạn. Bạn đã được đăng xuất tự động.');
+    }
+  }
+}
+
+$('activateKeyBtn').addEventListener('click',async()=>{
+  if(licenseBusy) return;
+  const statusEl=$('licenseStatus');
+  const raw=($('licenseKeyInput').value||'').trim().toUpperCase();
+  if(!raw){setStatus(statusEl,'Vui lòng nhập Key.','err');return;}
+
+  licenseBusy=true;
+  $('activateKeyBtn').disabled=true;
+  setStatus(statusEl,'Đang xác thực apiKey + deviceId…');
+  try{
+    const deviceId=await prepareLoginDeviceId();
+    const result=await apiLogin(raw,deviceId);
+    const type=normalizeType(result.typeKey);
+    if(!KEY_TYPE_LABEL[type]) throw new Error('API trả về typeKey không được hỗ trợ: '+type);
+    if(type!=='LIFETIME' && (!result.expireTime || Number(result.expireTime)<=Date.now())){
+      throw new Error('Key đã hết hạn hoặc slot thiết bị đã hết hạn.');
+    }
+    if(result.deviceId && String(result.deviceId)!==String(deviceId)){
+      throw new Error('Device ID API trả về không khớp thiết bị hiện tại.');
+    }
+
+    licenseState={
+      key:result.key || raw,typeKey:type,maxDeviceIds:result.maxDeviceIds,
+      deviceIds:result.deviceIds,deviceId:result.deviceId || deviceId,
+      startTime:result.startTime,expireTime:result.expireTime
+    };
+    saveLicenseSession(licenseState);
+    refreshLicensePill(); renderSetting();
+    setStatus(statusEl,'Đăng nhập thành công.','ok');
+    hideLoginGate();
+
+    document.querySelectorAll('.segment button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    const build=document.querySelector('.segment button[data-view="build"]');
+    build?.classList.add('active'); $('view-build')?.classList.add('active');
+  }catch(err){
+    clearLicenseSession();
+    refreshLicensePill(); renderSetting();
+    setStatus(statusEl,err.message||'Không thể xác thực Key.','err');
+  }finally{
+    licenseBusy=false;
+    $('activateKeyBtn').disabled=false;
+  }
+});
+
+$('copyDeviceIdBtn').addEventListener('click',async()=>{
+  const id=$('loginDeviceId').value;
+  try{
+    await navigator.clipboard.writeText(id);
+    setStatus($('licenseStatus'),'Đã sao chép Device ID.','ok');
+  }catch(e){setStatus($('licenseStatus'),'Không thể sao chép tự động.','err');}
+});
+
+$('settingLogoutKeyBtn').addEventListener('click',()=>{
+  if(!confirm('Đăng xuất key trên thiết bị này?')) return;
+  forceLogout('Đã đăng xuất key.');
+});
+
+(function startLicenseMonitor(){
+  if(countdownTimer) clearInterval(countdownTimer);
+  if(validationTimer) clearInterval(validationTimer);
+  // Local countdown: checks every second, so expiry logs out immediately.
+  countdownTimer=setInterval(()=>{
+    refreshCountdown();
+    refreshLicensePill();
+  },1000);
+  // Server validation: continuously checks the key/device slot.
+  validationTimer=setInterval(()=>{
+    if(hasValidAccess()) continuousKeyCheck();
+  },10000);
+})();
+
+(async function initLicenseSystem(){
+  try{
+    await prepareLoginDeviceId();
+    const stored=loadLicenseSession();
+    if(stored){
+      licenseState=stored;
+      try{
+        await validateCurrentKey();
+      }catch(e){
+        clearLicenseSession();
+      }
+    }
+  }catch(e){}
+  refreshLicensePill();
+  renderSetting();
+  if(hasValidAccess()) hideLoginGate();
+  else showLoginGate();
+})();
+
+/* ---------- Custom Payload Data ---------- */
+
+function validateCustomPayloadXml(raw){
+  const text = (raw || '').trim();
+  if(!text) return {ok:true, empty:true, text:''};
+  // Wrap in a minimal plist envelope so a bare <dict>...</dict> (or several) can be parsed as XML.
+  const wrapped = '<?xml version="1.0" encoding="UTF-8"?><root>' + text + '</root>';
+  const doc = new DOMParser().parseFromString(wrapped, 'application/xml');
+  const errNode = doc.querySelector('parsererror');
+  if(errNode) return {ok:false, error: 'XML không hợp lệ: ' + errNode.textContent.split('\n')[0]};
+  const dicts = doc.documentElement.querySelectorAll(':scope > dict');
+  if(dicts.length === 0) return {ok:false, error: 'Không tìm thấy khối <dict>…</dict> nào ở cấp cao nhất.'};
+  return {ok:true, empty:false, text, count: dicts.length};
+}
+$('validateCustomPayloadBtn').addEventListener('click', ()=>{
+  const statusEl = $('customPayloadStatus');
+  const res = validateCustomPayloadXml($('customPayloadXml').value);
+  if(!res.ok){ setStatus(statusEl, res.error, 'err'); return; }
+  if(res.empty){ setStatus(statusEl, 'Trống — sẽ không thêm payload tuỳ chỉnh nào.', ''); return; }
+  setStatus(statusEl, 'Hợp lệ — tìm thấy ' + res.count + ' khối <dict> sẽ được thêm vào PayloadContent.', 'ok');
+});
+$('clearCustomPayloadBtn').addEventListener('click', ()=>{
+  $('customPayloadXml').value = '';
+  setStatus($('customPayloadStatus'), '', '');
+});
+
+/* ---------- top-level segment ---------- */
+document.querySelectorAll('.segment button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const target=btn.dataset.view;
+    if(!hasValidAccess()){
+      showLoginGate();
+      return;
+    }
+    document.querySelectorAll('.segment button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    $('view-'+target)?.classList.add('active');
+    if(target==='settings') renderSetting();
+  });
+});
+
+/* ================= TẠO HỒ SƠ ================= */
+const restrictionsList = [
+  {id:'allowCamera', label:'Cho phép Camera', def:true},
+  {id:'allowScreenShot', label:'Cho phép chụp màn hình', def:true},
+  {id:'allowSiri', label:'Cho phép Siri', def:true},
+  {id:'allowSafari', label:'Cho phép Safari', def:true},
+  {id:'allowAppInstallation', label:'Cho phép cài từ App Store', def:true},
+  {id:'allowInAppPurchases', label:'Cho phép mua trong ứng dụng', def:true},
+  {id:'allowAirDrop', label:'Cho phép AirDrop', def:true},
+  {id:'forceEncryptedBackup', label:'Bắt buộc sao lưu mã hoá', def:false}
+];
+(function renderRestrictions(){
+  const wrap = $('restrictionsList');
+  restrictionsList.forEach(r=>{
+    const row = document.createElement('label');
+    row.className = 'toggle';
+    row.innerHTML = `<input type="checkbox" id="r-${r.id}" ${r.def?'checked':''}><span class="track"><span class="thumb"></span></span><span class="tlabel">${r.label}</span>`;
+    wrap.appendChild(row);
+  });
+})();
+
+function syncPayloadToggle(pc){
+  const input = pc.querySelector('input[type="checkbox"]');
+  if(!input) return;
+  const on = !!input.checked;
+  pc.classList.toggle('on', on);
+  const panel = $('fields-'+pc.dataset.payload);
+  if(panel) panel.classList.toggle('show', on);
+}
+document.querySelectorAll('.payload-check').forEach(pc=>{
+  const input = pc.querySelector('input[type="checkbox"]');
+  if(!input) return;
+  input.addEventListener('change', ()=>{
+    syncPayloadToggle(pc);
+    updatePayloadCount();
+  });
+  // Keep visual state correct if the browser toggles the label/input natively.
+  syncPayloadToggle(pc);
+});
+function updatePayloadCount(){
+  const n = document.querySelectorAll('.payload-check input[type="checkbox"]:checked').length;
+  document.querySelectorAll('.payload-check').forEach(syncPayloadToggle);
+  $('payloadCount').textContent = n + ' đã chọn';
+}
+$('wifiEnc').addEventListener('change', ()=>{
+  $('wifiPassWrap').style.display = $('wifiEnc').value === 'None' ? 'none' : 'block';
+});
+
+function buildWifiPayload(base){
+  const enc = $('wifiEnc').value;
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.wifi.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.wifi</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Wi-Fi</string>
+      <key>SSID_STR</key><string>${xmlEscape($('wifiSsid').value)}</string>
+      <key>HIDDEN_NETWORK</key>${b($('wifiHidden').checked)}
+      <key>AutoJoin</key>${b($('wifiAutojoin').checked)}
+      <key>EncryptionType</key><string>${enc}</string>
+      ${enc !== 'None' ? `<key>Password</key><string>${xmlEscape($('wifiPass').value)}</string>` : ''}
+    </dict>`;
+}
+function buildVpnPayload(base){
+  const secretB64 = forge.util.encode64($('vpnSecret').value || '');
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.vpn.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.vpn</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>VPN</string>
+      <key>UserDefinedName</key><string>${xmlEscape($('vpnName').value || 'VPN')}</string>
+      <key>VPNType</key><string>L2TP</string>
+      <key>L2TP</key>
+      <dict>
+        <key>RemoteAddress</key><string>${xmlEscape($('vpnServer').value)}</string>
+        <key>AuthName</key><string>${xmlEscape($('vpnUser').value)}</string>
+        <key>AuthenticationMethod</key><string>Password</string>
+        <key>SharedSecret</key><data>${secretB64}</data>
+        <key>OnDemandEnabled</key><integer>0</integer>
+      </dict>
+    </dict>`;
+}
+function buildRestrictionsPayload(base){
+  const rows = restrictionsList.map(r=>`      <key>${r.id}</key>${b($('r-'+r.id).checked)}`).join('\n');
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.applicationaccess</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.restrictions</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Giới hạn thiết bị</string>
+${rows}
+    </dict>`;
+}
+function buildWebClipPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.webClip.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.webclip</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Web Clip</string>
+      <key>Label</key><string>${xmlEscape($('clipLabel').value || 'Web Clip')}</string>
+      <key>URL</key><string>${xmlEscape($('clipUrl').value)}</string>
+      <key>IsRemovable</key>${b($('clipRemovable').checked)}
+      <key>FullScreen</key>${b($('clipFullscreen').checked)}
+      <key>Precomposed</key><true/>
+    </dict>`;
+}
+function buildPasscodePayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.mobiledevice.passwordpolicy</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.passcode</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Chính sách mã khoá</string>
+      <key>allowSimple</key>${b($('pcAllowSimple').checked)}
+      <key>requireAlphanumeric</key>${b($('pcAlphanumeric').checked)}
+      <key>minLength</key><integer>${parseInt($('pcMinLen').value||'6',10)}</integer>
+      <key>maxFailedAttempts</key><integer>${parseInt($('pcMaxFail').value||'10',10)}</integer>
+    </dict>`;
+}
+
+function buildEmailPayload(base){
+  const type = $('emailType').value;
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.mail.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.email</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape($('emailDesc').value || 'Email')}</string>
+      <key>EmailAccountDescription</key><string>${xmlEscape($('emailDesc').value)}</string>
+      <key>EmailAccountType</key><string>${type}</string>
+      <key>EmailAddress</key><string>${xmlEscape($('emailAddress').value)}</string>
+      <key>IncomingMailServerHostName</key><string>${xmlEscape($('emailIncoming').value)}</string>
+      <key>IncomingMailServerUsername</key><string>${xmlEscape($('emailUser').value)}</string>
+      <key>IncomingMailServerUseSSL</key>${b($('emailSSL').checked)}
+      <key>OutgoingMailServerHostName</key><string>${xmlEscape($('emailOutgoing').value)}</string>
+      <key>OutgoingMailServerUsername</key><string>${xmlEscape($('emailUser').value)}</string>
+      <key>OutgoingPasswordSameAsIncomingPassword</key><true/>
+    </dict>`;
+}
+function buildExchangePayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.eas.account</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.exchange</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Exchange</string>
+      <key>Host</key><string>${xmlEscape($('exchHost').value)}</string>
+      <key>EmailAddress</key><string>${xmlEscape($('exchEmail').value)}</string>
+      <key>UserName</key><string>${xmlEscape($('exchUser').value)}</string>
+      <key>UseSSL</key>${b($('exchSSL').checked)}
+    </dict>`;
+}
+function buildLdapPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.ldap.account</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.ldap</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape($('ldapDesc').value || 'LDAP')}</string>
+      <key>LDAPAccountDescription</key><string>${xmlEscape($('ldapDesc').value)}</string>
+      <key>LDAPAccountHostName</key><string>${xmlEscape($('ldapHost').value)}</string>
+      <key>LDAPAccountUserName</key><string>${xmlEscape($('ldapUser').value)}</string>
+      <key>LDAPAccountUseSSL</key>${b($('ldapSSL').checked)}
+    </dict>`;
+}
+function buildCalDavPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.caldav.account</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.caldav</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape($('caldavDesc').value || 'CalDAV')}</string>
+      <key>CalDAVAccountDescription</key><string>${xmlEscape($('caldavDesc').value)}</string>
+      <key>CalDAVHostName</key><string>${xmlEscape($('caldavHost').value)}</string>
+      <key>CalDAVUsername</key><string>${xmlEscape($('caldavUser').value)}</string>
+      <key>CalDAVPort</key><integer>${parseInt($('caldavPort').value||'443',10)}</integer>
+      <key>CalDAVUseSSL</key>${b($('caldavSSL').checked)}
+    </dict>`;
+}
+function buildCardDavPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.carddav.account</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.carddav</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape($('carddavDesc').value || 'CardDAV')}</string>
+      <key>CardDAVAccountDescription</key><string>${xmlEscape($('carddavDesc').value)}</string>
+      <key>CardDAVHostName</key><string>${xmlEscape($('carddavHost').value)}</string>
+      <key>CardDAVUsername</key><string>${xmlEscape($('carddavUser').value)}</string>
+      <key>CardDAVPort</key><integer>${parseInt($('carddavPort').value||'443',10)}</integer>
+      <key>CardDAVUseSSL</key>${b($('carddavSSL').checked)}
+    </dict>`;
+}
+function buildSubCalPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.subscribedcalendar.account</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.subcal</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape($('subcalDesc').value || 'Lịch đăng ký')}</string>
+      <key>SubCalAccountDescription</key><string>${xmlEscape($('subcalDesc').value)}</string>
+      <key>SubCalAccountHostName</key><string>${xmlEscape($('subcalUrl').value)}</string>
+      <key>SubCalAccountUseSSL</key>${b($('subcalSSL').checked)}
+    </dict>`;
+}
+function buildProxyPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.proxy.http.global</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.proxy</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Proxy HTTP</string>
+      <key>ProxyType</key><string>Manual</string>
+      <key>ProxyServer</key><string>${xmlEscape($('proxyServer').value)}</string>
+      <key>ProxyServerPort</key><integer>${parseInt($('proxyPort').value||'8080',10)}</integer>
+    </dict>`;
+}
+function buildApnPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.cellular</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.apn</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>APN di động</string>
+      <key>APNs</key>
+      <array>
+        <dict>
+          <key>Name</key><string>${xmlEscape($('apnName').value)}</string>
+          <key>AuthenticationType</key><string>PAP</string>
+          <key>Username</key><string>${xmlEscape($('apnUser').value)}</string>
+          <key>Password</key><string>${xmlEscape($('apnPass').value)}</string>
+        </dict>
+      </array>
+    </dict>`;
+}
+function buildAirPrintPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.airprint</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.airprint</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>AirPrint</string>
+      <key>AirPrint</key>
+      <array>
+        <dict>
+          <key>IPAddress</key><string>${xmlEscape($('airprintIp').value)}</string>
+          <key>Port</key><integer>${parseInt($('airprintPort').value||'631',10)}</integer>
+          <key>ResourcePath</key><string>${xmlEscape($('airprintPath').value || '/')}</string>
+        </dict>
+      </array>
+    </dict>`;
+}
+function buildSingleAppPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.app.singleapp</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.singleapp</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Chế độ một ứng dụng</string>
+      <key>Identifier</key><string>${xmlEscape($('singleAppId').value)}</string>
+    </dict>`;
+}
+function buildLockMsgPayload(base){
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.lockScreenMessage</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.lockmsg</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>Thông báo màn hình khoá</string>
+      <key>LockScreenFootnote</key><string>${xmlEscape($('lockFootnote').value)}</string>
+    </dict>`;
+}
+function buildDnsPayload(base){
+  const servers = ($('dnsServers').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const domains = ($('dnsDomains').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const serversXml = servers.map(s=>`          <string>${xmlEscape(s)}</string>`).join('\n');
+  const domainsXml = domains.map(s=>`          <string>${xmlEscape(s)}</string>`).join('\n');
+  return `    <dict>
+      <key>PayloadType</key><string>com.apple.dnsSettings.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.dns</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>DNS quản lý</string>
+      <key>DNSSettings</key>
+      <dict>
+        <key>ServerAddresses</key>
+        <array>
+${serversXml}
+        </array>
+        <key>SupplementalMatchDomains</key>
+        <array>
+${domainsXml}
+        </array>
+      </dict>
+    </dict>`;
+}
+async function buildCertPayload(base){
+  const f = $('certPayloadFile').files[0];
+  if(!f) throw new Error('Chưa chọn tệp chứng chỉ cho payload "Chứng chỉ đính kèm".');
+  const buf = await readAsArrayBuffer(f);
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for(let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = btoa(binary).replace(/(.{64})/g, '$1\n');
+  const isRoot = $('certIsRoot').checked;
+  return `    <dict>
+      <key>PayloadCertificateFileName</key><string>${xmlEscape(f.name)}</string>
+      <key>PayloadContent</key><data>
+${b64}
+      </data>
+      <key>PayloadType</key><string>${isRoot ? 'com.apple.security.root' : 'com.apple.security.pkcs1'}</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>${base}.cert</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape(f.name)}</string>
+    </dict>`;
+}
+
+let builderProfile = null; // {name, text}
+
+$('buildBtn').addEventListener('click', async ()=>{
+  const statusEl = $('buildStatus');
+  const btn = $('buildBtn');
+  $('buildResult').classList.remove('show');
+  setStatus(statusEl, '');
+
+  if(!hasValidAccess()){
+    setStatus(statusEl, 'Key không hợp lệ hoặc đã hết hạn.', 'err');
+    return;
+  }
+
+  const base = ($('genIdentifier').value || 'com.levizioscheatz.profile').trim();
+  const selected = Array.from(
+    document.querySelectorAll('.payload-check input[type="checkbox"]:checked')
+  ).map(input => input.closest('.payload-check')?.dataset.payload).filter(Boolean);
+
+  const customPreview = validateCustomPayloadXml($('customPayloadXml').value);
+  if(selected.length === 0 && (!customPreview.ok || customPreview.empty)){
+    setStatus(statusEl, 'Chọn ít nhất một payload, hoặc nhập Custom Payload Data hợp lệ.', 'err');
+    return;
+  }
+
+  const builders = {
+    wifi: buildWifiPayload, vpn: buildVpnPayload, restrictions: buildRestrictionsPayload,
+    webclip: buildWebClipPayload, passcode: buildPasscodePayload, email: buildEmailPayload,
+    exchange: buildExchangePayload, ldap: buildLdapPayload, caldav: buildCalDavPayload,
+    carddav: buildCardDavPayload, subcal: buildSubCalPayload, proxy: buildProxyPayload,
+    apn: buildApnPayload, airprint: buildAirPrintPayload, singleapp: buildSingleAppPayload,
+    lockmsg: buildLockMsgPayload, dns: buildDnsPayload, cert: buildCertPayload
+  };
+
+  btn.disabled = true;
+  try{
+    setStatus(statusEl, 'Đang dựng ' + selected.length + ' payload…');
+    const parts = [];
+
+    for(const k of selected){
+      if(typeof builders[k] !== 'function'){
+        throw new Error('Payload "' + k + '" chưa có bộ dựng tương ứng.');
+      }
+      parts.push(await builders[k](base));
+    }
+
+    const customRes = validateCustomPayloadXml($('customPayloadXml').value);
+    if(!customRes.ok) throw new Error('Custom Payload Data: ' + customRes.error);
+    if(!customRes.empty) parts.push(customRes.text);
+
+    const payloadsXml = parts.join('\n');
+    const uuidTop = uuidv4();
+
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+${payloadsXml}
+  </array>
+  <key>PayloadDisplayName</key><string>${xmlEscape($('genName').value || 'Hồ sơ cấu hình')}</string>
+  <key>PayloadDescription</key><string>${xmlEscape($('genDesc').value || '')}</string>
+  <key>PayloadOrganization</key><string>${xmlEscape($('genOrg').value || 'Levizioscheatz')}</string>
+  <key>PayloadIdentifier</key><string>${xmlEscape(base)}</string>
+  <key>PayloadRemovalDisallowed</key><false/>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadUUID</key><string>${uuidTop}</string>
+  <key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`;
+
+    const fileName = (($('genName').value || 'HoSo').trim().replace(/[^\w\-]+/g,'_') || 'HoSo') + '.mobileconfig';
+    builderProfile = {name:fileName, text:plist};
+
+    $('buildFileName').textContent = fileName;
+    $('buildFileSub').textContent = selected.length + ' payload · chưa ký · ' + fmtBytes(new Blob([plist]).size);
+    $('buildPreview').textContent = plist;
+
+    const blob = new Blob([plist], {type:'application/x-apple-aspen-config'});
+    const url = URL.createObjectURL(blob);
+    $('buildDownload').href = url;
+    $('buildDownload').download = fileName;
+
+    $('buildResult').classList.add('show');
+    setStatus(statusEl, '✓ Đã tạo hồ sơ thành công.', 'ok');
+  }catch(err){
+    console.error(err);
+    setStatus(statusEl, 'Lỗi khi tạo hồ sơ: ' + (err?.message || String(err)), 'err');
+  }finally{
+    btn.disabled = false;
+  }
+});
+/* ================= KÝ ================= */
+let lastSignedFileForShare = null;
+$('shareSignedBtn').addEventListener('click', async ()=>{
+  if(!lastSignedFileForShare) return;
+  try{
+    await navigator.share({files:[lastSignedFileForShare], title: lastSignedFileForShare.name});
+  }catch(e){
+    if(e && e.name !== 'AbortError') alert('Không chia sẻ được: ' + e.message + '\nHãy dùng nút "Tải về" thay thế.');
+  }
+});
+let currentMode = 'self';
+document.querySelectorAll('.modebtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.modebtn').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.mode-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+    document.querySelector('.mode-panel[data-panel="'+currentMode+'"]').classList.add('active');
+  });
+});
+
+function wireFile(boxId, inputId, nameId, label){
+  $(boxId).addEventListener('click', ()=> $(inputId).click());
+  $(inputId).addEventListener('change', (e)=>{
+    const f = e.target.files[0];
+    $(nameId).textContent = f ? f.name : label;
+  });
+}
+wireFile('configBox','configFile','configName','Chọn tệp .mobileconfig cần ký');
+wireFile('p12Box','p12File','p12Name','Chọn tệp .p12');
+wireFile('pemCertBox','pemCertFile','pemCertName','Chọn tệp chứng chỉ');
+wireFile('pemKeyBox','pemKeyFile','pemKeyName','Chọn tệp khoá riêng');
+wireFile('signedBox','signedFile','signedName','Chọn tệp .mobileconfig đã ký (PKCS#7)');
+wireFile('certPayloadBox','certPayloadFile','certPayloadName','Chọn tệp chứng chỉ');
+$('configFile').addEventListener('change', ()=>{
+  if($('configFile').files[0]){
+    $('configName').textContent = $('configFile').files[0].name;
+  }
+});
+
+function generateRsaKeyPairAsync(bits=2048){
+  return new Promise((resolve,reject)=>{
+    try{
+      forge.pki.rsa.generateKeyPair({bits, workers:-1}, (err, keypair)=>{
+        if(err) reject(err); else resolve(keypair);
+      });
+    }catch(e){ reject(e); }
+  });
+}
+async function generateSelfSigned(cn, org, years){
+  const keys = await generateRsaKeyPairAsync(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = '01' + Date.now();
+  cert.validity.notBefore = new Date();
+  cert.validity.notAfter = new Date();
+  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + Number(years || 10));
+  const attrs = [{name:'commonName', value: cn}, {name:'organizationName', value: org || cn}, {shortName:'OU', value:'Profile Signing'}];
+  cert.setSubject(attrs); cert.setIssuer(attrs);
+  cert.setExtensions([
+    {name:'basicConstraints', cA:false},
+    {name:'keyUsage', digitalSignature:true, contentCommitment:true, keyEncipherment:true},
+    {name:'extKeyUsage', codeSigning:true, emailProtection:true}
+  ]);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  return {cert, privateKey: keys.privateKey};
+}
+async function generateCaAndLeaf(caName, leafCn, org, years){
+  const caKeys = await generateRsaKeyPairAsync(2048);
+  const caCert = forge.pki.createCertificate();
+  caCert.publicKey = caKeys.publicKey;
+  caCert.serialNumber = '01' + Date.now();
+  caCert.validity.notBefore = new Date();
+  caCert.validity.notAfter = new Date();
+  caCert.validity.notAfter.setFullYear(caCert.validity.notBefore.getFullYear() + Number(years||10));
+  const caAttrs = [{name:'commonName', value: caName}, {name:'organizationName', value: org||caName}];
+  caCert.setSubject(caAttrs); caCert.setIssuer(caAttrs);
+  caCert.setExtensions([
+    {name:'basicConstraints', cA:true},
+    {name:'keyUsage', keyCertSign:true, cRLSign:true, digitalSignature:true}
+  ]);
+  caCert.sign(caKeys.privateKey, forge.md.sha256.create());
+
+  const leafKeys = await generateRsaKeyPairAsync(2048);
+  const leafCert = forge.pki.createCertificate();
+  leafCert.publicKey = leafKeys.publicKey;
+  leafCert.serialNumber = '02' + Date.now();
+  leafCert.validity.notBefore = new Date();
+  leafCert.validity.notAfter = new Date();
+  leafCert.validity.notAfter.setFullYear(leafCert.validity.notBefore.getFullYear() + Number(years||10));
+  leafCert.setSubject([{name:'commonName', value: leafCn}, {name:'organizationName', value: org||leafCn}]);
+  leafCert.setIssuer(caAttrs);
+  leafCert.setExtensions([
+    {name:'basicConstraints', cA:false},
+    {name:'keyUsage', digitalSignature:true, contentCommitment:true, keyEncipherment:true},
+    {name:'extKeyUsage', codeSigning:true, emailProtection:true}
+  ]);
+  leafCert.sign(caKeys.privateKey, forge.md.sha256.create());
+  return {caCert, caKeys, leafCert, leafKeys};
+}
+function certToBase64Der(cert){
+  return forge.util.encode64(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes());
+}
+function buildCaInstallProfile(caCert, caName, baseId){
+  const b64 = certToBase64Der(caCert);
+  const wrapped = b64.replace(/(.{64})/g, '$1\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadCertificateFileName</key><string>ca.cer</string>
+      <key>PayloadContent</key><data>
+${wrapped}
+      </data>
+      <key>PayloadDescription</key><string>Cai dat chung chi goc de cac ho so ky boi ${xmlEscape(caName)} hien thi Da xac minh.</string>
+      <key>PayloadDisplayName</key><string>${xmlEscape(caName)}</string>
+      <key>PayloadIdentifier</key><string>${baseId}.ca-root</string>
+      <key>PayloadType</key><string>com.apple.security.root</string>
+      <key>PayloadUUID</key><string>${uuidv4()}</string>
+      <key>PayloadVersion</key><integer>1</integer>
+    </dict>
+  </array>
+  <key>PayloadDisplayName</key><string>Cai dat CA goc - ${xmlEscape(caName)}</string>
+  <key>PayloadDescription</key><string>Cai mot lan duy nhat de thiet bi tin cay cac ho so ky boi ${xmlEscape(caName)} sau nay.</string>
+  <key>PayloadIdentifier</key><string>${baseId}.ca-install</string>
+  <key>PayloadOrganization</key><string>${xmlEscape(caName)}</string>
+  <key>PayloadRemovalDisallowed</key><false/>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadUUID</key><string>${uuidv4()}</string>
+  <key>PayloadVersion</key><integer>1</integer>
+</dict>
+</plist>`;
+}
+function signPlistWithPkcs7(plistText, cert, privateKey, extraCerts){
+  const p7 = forge.pkcs7.createSignedData();
+  p7.content = forge.util.createBuffer(plistText, 'utf8');
+  p7.addCertificate(cert);
+  (extraCerts || []).forEach(c => p7.addCertificate(c));
+  p7.addSigner({
+    key: privateKey, certificate: cert, digestAlgorithm: forge.pki.oids.sha256,
+    authenticatedAttributes: [
+      {type: forge.pki.oids.contentType, value: forge.pki.oids.data},
+      {type: forge.pki.oids.messageDigest},
+      {type: forge.pki.oids.signingTime, value: new Date()}
+    ]
+  });
+  p7.sign({detached:false});
+  return forge.asn1.toDer(p7.toAsn1()).getBytes();
+}
+async function loadP12(file, password){
+  const buf = await readAsArrayBuffer(file);
+  const asn1 = forge.asn1.fromDer(forge.util.createBuffer(buf));
+  const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, password);
+  let cert=null, key=null;
+  const certBags = p12.getBags({bagType: forge.pki.oids.certBag});
+  const bag1 = certBags[forge.pki.oids.certBag];
+  if(bag1 && bag1.length) cert = bag1[0].cert;
+  let keyBags = p12.getBags({bagType: forge.pki.oids.pkcs8ShroudedKeyBag});
+  let kb = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
+  if(!kb || !kb.length){ const kb2 = p12.getBags({bagType: forge.pki.oids.keyBag}); kb = kb2[forge.pki.oids.keyBag]; }
+  if(kb && kb.length) key = kb[0].key;
+  if(!cert || !key) throw new Error('Không tìm thấy chứng chỉ hoặc khoá riêng hợp lệ trong tệp .p12.');
+  return {cert, privateKey: key};
+}
+
+$('signBtn').addEventListener('click', async ()=>{
+  const statusEl = $('signStatus');
+  $('signResult').classList.remove('show');
+  $('signedSuccessText')?.classList.remove('show');
+  setStatus(statusEl, '');
+  if (!hasValidAccess()) return;
+  try{
+    let plistText, baseFileName;
+    const configFile = $('configFile')?.files?.[0];
+
+    if(!configFile){
+      setStatus(statusEl, 'Vui lòng chọn tệp .mobileconfig cần ký.', 'err');
+      return;
+    }
+
+    $('signBtn').disabled = true;
+    setStatus(statusEl, 'Đang đọc hồ sơ cấu hình…');
+
+    plistText = await readAsText(configFile);
+    baseFileName = configFile.name.replace(/\.mobileconfig$|\.xml$/i, '');
+
+    if(!plistText.includes('<?xml') && !plistText.includes('<plist')){
+      throw new Error('Tệp không phải plist XML hợp lệ.');
+    }
+      setStatus(statusEl, 'Đang đọc hồ sơ cấu hình…');
+      plistText = await readAsText(configFile);
+      baseFileName = configFile.name.replace(/\.mobileconfig$|\.xml$/i, '');
+      if(!plistText.includes('<?xml') && !plistText.includes('<plist')){
+        setStatus(statusEl, 'Tệp có vẻ không phải plist XML — vẫn tiếp tục ký…');
+      }
+    }
+    $('signBtn').disabled = true;
+
+    let cert, privateKey, signerLabel, orgLabel, extraCerts = [], caArtifacts = null;
+
+    if(currentMode === 'self'){
+      const cn = $('signerName').value.trim() || 'Levizioscheatz';
+      const org = $('signerOrg').value.trim() || cn;
+      setStatus(statusEl, 'Đang tạo chứng chỉ tự ký cho "'+cn+'"…');
+      await new Promise(r=>setTimeout(r, 30));
+      const g = await generateSelfSigned(cn, org, $('signerYears').value);
+      cert = g.cert; privateKey = g.privateKey; signerLabel = cn; orgLabel = org;
+    } else if(currentMode === 'ca'){
+      const caName = $('caName').value.trim() || 'Levizioscheatz Root CA';
+      const leafCn = $('caLeafName').value.trim() || 'Levizioscheatz';
+      const org = $('caOrg').value.trim() || leafCn;
+      setStatus(statusEl, 'Đang tạo CA gốc và chứng chỉ ký con…');
+      await new Promise(r=>setTimeout(r, 30));
+      const g = await generateCaAndLeaf(caName, leafCn, org, $('caYears').value);
+      cert = g.leafCert; privateKey = g.leafKeys.privateKey; extraCerts = [g.caCert];
+      signerLabel = leafCn; orgLabel = org;
+      caArtifacts = {caCert: g.caCert, caName};
+    } else if(currentMode === 'p12'){
+      const f = $('p12File').files[0];
+      const pass = $('p12Pass').value;
+      if(!f){ setStatus(statusEl, 'Vui lòng chọn tệp .p12/.pfx.', 'err'); $('signBtn').disabled=false; return; }
+      setStatus(statusEl, 'Đang đọc chứng chỉ .p12…');
+      const loaded = await loadP12(f, pass);
+      cert = loaded.cert; privateKey = loaded.privateKey;
+      signerLabel = (cert.subject.getField('CN') || {}).value || 'Đã ký';
+      orgLabel = (cert.subject.getField('O') || {}).value || '—';
+    } else {
+      const cf = $('pemCertFile').files[0];
+      const kf = $('pemKeyFile').files[0];
+      if(!cf || !kf){ setStatus(statusEl, 'Vui lòng chọn cả tệp chứng chỉ và khoá riêng PEM.', 'err'); $('signBtn').disabled=false; return; }
+      setStatus(statusEl, 'Đang đọc chứng chỉ và khoá riêng PEM…');
+      const certPem = await readAsText(cf);
+      const keyPem = await readAsText(kf);
+      cert = forge.pki.certificateFromPem(certPem);
+      privateKey = forge.pki.privateKeyFromPem(keyPem);
+      signerLabel = (cert.subject.getField('CN') || {}).value || 'Đã ký';
+      orgLabel = (cert.subject.getField('O') || {}).value || '—';
+    }
+
+    setStatus(statusEl, 'Đang đóng gói chữ ký CMS/PKCS#7…');
+    await new Promise(r=>setTimeout(r, 20));
+    const der = signPlistWithPkcs7(plistText, cert, privateKey, extraCerts);
+    const bytes = byteStringToUint8Array(der);
+    if(!bytes || bytes.length === 0){
+      throw new Error('Kết quả ký rỗng — huỷ tạo file để tránh hồ sơ hỏng.');
+    }
+    const blob = new Blob([bytes], {type:'application/x-apple-aspen-config'});
+    const url = URL.createObjectURL(blob);
+    const outName = baseFileName + '.signed.mobileconfig';
+
+    $('downloadLink').href = url;
+    $('downloadLink').download = outName;
+    $('downloadSub').textContent = currentMode === 'ca' ? 'Cần cài CA gốc trước để hiện Verified' : 'Cài trực tiếp vào thiết bị';
+
+    // Web Share API fallback — some iOS Safari versions don't reliably trigger
+    // the "Save to Files" sheet from a programmatic/blob download link.
+    lastSignedFileForShare = new File([blob], outName, {type:'application/x-apple-aspen-config'});
+    const canShareFiles = !!(navigator.canShare && navigator.share && navigator.canShare({files:[lastSignedFileForShare]}));
+    $('shareSignedBtn').style.display = canShareFiles ? 'flex' : 'none';
+
+    $('resultDesc').textContent = 'Ký chứng nhận bởi "'+signerLabel+'" — thuật toán SHA-256 / RSA.';
+    $('metaSigner').textContent = signerLabel;
+    $('metaOrg').textContent = orgLabel || '—';
+    $('metaExpiry').textContent = fmtDate(cert.validity.notAfter);
+    $('metaFile').textContent = outName;
+    $('metaSize').textContent = fmtBytes(bytes.length);
+
+    const certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
+    const certBlob = new Blob([byteStringToUint8Array(certDer)], {type:'application/x-x509-ca-cert'});
+    const certUrl = URL.createObjectURL(certBlob);
+    $('certDownload').href = certUrl;
+    $('certDownload').download = (signerLabel.replace(/[^\w\-]+/g,'_')) + '.cer';
+
+    let caPlistForZip = null, caFileNameForZip = null;
+    if(caArtifacts){
+      const caPlist = buildCaInstallProfile(caArtifacts.caCert, caArtifacts.caName, ($('genIdentifier').value || 'com.levizioscheatz.profile').trim());
+      const caBlob = new Blob([caPlist], {type:'application/xml'});
+      const caUrl = URL.createObjectURL(caBlob);
+      $('caDownload').href = caUrl;
+      $('caDownload').download = 'CA-Install-' + caArtifacts.caName.replace(/[^\w\-]+/g,'_') + '.mobileconfig';
+      $('caDownload').style.display = 'flex';
+      caPlistForZip = caPlist;
+      caFileNameForZip = $('caDownload').download;
+    } else {
+      $('caDownload').style.display = 'none';
+    }
+
+    lastSignArtifacts = {
+      signedBytes: bytes, signedName: outName,
+      certDer: byteStringToUint8Array(certDer), certName: $('certDownload').download,
+      caPlist: caPlistForZip, caName: caFileNameForZip,
+      signerLabel, orgLabel, mode: currentMode
+    };
+    $('signZipSub').textContent = caArtifacts ? 'Hồ sơ + chứng chỉ + CA gốc + hướng dẫn' : 'Hồ sơ + chứng chỉ + hướng dẫn cài';
+
+    $('signResult').classList.add('show');
+    $('signedSuccessText')?.classList.add('show');
+    setStatus(statusEl, '✓ Ký thành công — file đã sẵn sàng để tải.', 'ok');
+  }catch(err){
+    console.error(err);
+    setStatus(statusEl, 'Lỗi khi ký: ' + (err && err.message ? err.message : err), 'err');
+  }finally{
+    $('signBtn').disabled = false;
+  }
+});
+
+/* ================= PHÁ KÝ =================
+   Cơ chế: đọc file như dữ liệu nhị phân -> tìm chuỗi ASCII "<?xml" đầu tiên
+   -> bỏ toàn bộ phần trước nó -> giữ nguyên từ "<?xml" tới hết file.
+*/
+async function extractFromFirstXml(file){
+  const buf = await readAsArrayBuffer(file);
+  const bytes = new Uint8Array(buf);
+
+  // <?xml is ASCII, so search byte-by-byte and do not depend on text encoding.
+  const needle = [60,63,120,109,108]; // < ? x m l
+  let pos = -1;
+  outer:
+  for(let i=0;i<=bytes.length-needle.length;i++){
+    for(let j=0;j<needle.length;j++){
+      if(bytes[i+j] !== needle[j]) continue outer;
+    }
+    pos=i;
+    break;
+  }
+  if(pos < 0) throw new Error('Không tìm thấy "<?xml" đầu tiên trong tệp.');
+
+  const xmlBytes = bytes.slice(pos);
+  const text = new TextDecoder('utf-8', {fatal:false}).decode(xmlBytes);
+  if(!text.trimStart().startsWith('<?xml')){
+    throw new Error('Không thể đọc phần XML sau marker "<?xml".');
+  }
+  return {text, offset:pos, originalSize:bytes.length};
+}
+
+
+async function findFirstXmlOffset(file) {
+  const marker = new TextEncoder().encode('<?xml');
+  const CHUNK = 1024 * 1024; // 1 MiB
+  let overlap = new Uint8Array(0);
+  let offset = 0;
+
+  for (let pos = 0; pos < file.size; pos += CHUNK) {
+    const end = Math.min(pos + CHUNK, file.size);
+    const buf = new Uint8Array(await file.slice(pos, end).arrayBuffer());
+
+    const data = new Uint8Array(overlap.length + buf.length);
+    data.set(overlap, 0);
+    data.set(buf, overlap.length);
+
+    for (let i = 0; i <= data.length - marker.length; i++) {
+      let ok = true;
+      for (let j = 0; j < marker.length; j++) {
+        if (data[i + j] !== marker[j]) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) {
+        return offset - overlap.length + i;
+      }
+    }
+
+    overlap = data.slice(Math.max(0, data.length - marker.length + 1));
+    offset = end;
+  }
+
+  return -1;
+}
+
+async function createUnsignedMobileconfig(file) {
+  const xmlOffset = await findFirstXmlOffset(file);
+  if (xmlOffset < 0) {
+    throw new Error('Không tìm thấy <?xml trong file.');
+  }
+
+  // File.slice() creates a Blob view; no 48MB string conversion is needed.
+  const xmlBlob = file.slice(xmlOffset, file.size, 'application/x-apple-aspen-config');
+  return { xmlOffset, blob: xmlBlob };
+}
+
+$('unsignBtn').addEventListener('click', async () => {
+  const statusEl = $('unsignStatus');
+  const btn = $('unsignBtn');
+  const file = $('unsignFile')?.files?.[0];
+
+  $('unsignResult')?.classList.remove('show');
+  $('unsignSuccess')?.classList.remove('show');
+
+  if (!file) {
+    setStatus(statusEl, 'Hãy chọn file .mobileconfig.', 'err');
+    return;
+  }
+
+  if (!/\.mobileconfig$/i.test(file.name)) {
+    setStatus(statusEl, 'Chỉ hỗ trợ file .mobileconfig.', 'err');
+    return;
+  }
+
+  if (!hasValidAccess()) {
+    setStatus(statusEl, 'Key không hợp lệ hoặc đã hết hạn.', 'err');
+    return;
+  }
+
+  btn.disabled = true;
+  setStatus(statusEl, `Đang tìm XML trong ${(file.size / 1048576).toFixed(1)} MB…`);
+
+  try {
+    const { xmlOffset, blob } = await createUnsignedMobileconfig(file);
+    const cleanName = file.name.replace(/\.mobileconfig$/i, '') + '.unsigned.mobileconfig';
+
+    $('unsignFileName').textContent = cleanName;
+    $('unsignFileSub').textContent =
+      `Đã bỏ ${(xmlOffset / 1048576).toFixed(2)} MB dữ liệu trước XML · ${(blob.size / 1048576).toFixed(2)} MB kết quả`;
+
+    const oldUrl = $('unsignDownload')?.dataset?.blobUrl;
+    if (oldUrl) URL.revokeObjectURL(oldUrl);
+
+    const url = URL.createObjectURL(blob);
+    $('unsignDownload').href = url;
+    $('unsignDownload').download = cleanName;
+    $('unsignDownload').dataset.blobUrl = url;
+
+    $('unsignResult')?.classList.add('show');
+    $('unsignSuccess')?.classList.add('show');
+    setStatus(statusEl, '✓ Phá ký thành công.', 'ok');
+  } catch (err) {
+    console.error(err);
+    setStatus(statusEl, 'Lỗi: ' + (err?.message || String(err)), 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+
+/* ================= ZIP ================= */
+async function downloadZip(files, zipName, btn){
+  try{
+    if(btn) btn.disabled=true;
+    if(typeof JSZip==='undefined') throw new Error('Thư viện ZIP chưa tải xong. Hãy tải lại trang.');
+    const zip=new JSZip();
+    files.forEach(f=>zip.file(f.name,f.data));
+    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=zipName;
+    a.rel='noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }catch(e){
+    console.error(e);
+    alert('Không tạo được tệp ZIP: '+(e?.message||String(e)));
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+$('unsignZipBtn').addEventListener('click', async ()=>{
+  const a=window.__unsignArtifact;
+  if(!a){
+    setStatus($('unsignStatus'),'Chưa có kết quả phá ký để đóng ZIP.','err');
+    return;
+  }
+  const readme=`PHÁ KÝ MOBILECONFIG
+
+Tệp gốc: ${a.sourceName}
+Tệp kết quả: ${a.name}
+Cơ chế: tìm "<?xml" xuất hiện đầu tiên và xóa toàn bộ dữ liệu trước marker đó.
+Số byte đã loại bỏ: ${a.removedBytes}
+`;
+  await downloadZip([
+    {name:a.name,data:a.text},
+    {name:'HUONG-DAN.txt',data:readme}
+  ],a.name.replace(/\.mobileconfig$/i,'')+'.zip',$('unsignZipBtn'));
+});
+
+$('buildZipBtn').addEventListener('click', ()=>{
+  if(!builderProfile) return;
+  const readme = `Ho so cau hinh duoc tao boi trinh tao Levizioscheatz
+File: ${builderProfile.name}
+Trang thai: CHUA KY
+
+Cach dung:
+1. Mo lai tab "Ky" trong cong cu de ky ho so nay truoc khi cai vao thiet bi,
+   hoac cai truc tiep neu ban da tin tuong noi dung (ho so chua ky se hien
+   "Khong xac dinh" khi cai dat).
+2. Sau khi ky, dung file .signed.mobileconfig de cai vao thiet bi qua
+   Cai dat > Da tai xuong Ho so.
+`;
+  downloadZip([
+    {name: builderProfile.name, data: builderProfile.text},
+    {name: 'HUONG-DAN.txt', data: readme}
+  ], builderProfile.name.replace(/\.mobileconfig$/i,'') + '.zip', $('buildZipBtn'));
+});
+
+let lastSignArtifacts = null;
+$('signZipBtn').addEventListener('click', ()=>{
+  if(!lastSignArtifacts) return;
+  const a = lastSignArtifacts;
+  const readme = `Ho so da ky boi cong cu Levizioscheatz
+Nguoi ky: ${a.signerLabel}  |  To chuc: ${a.orgLabel || '-'}
+Thuat toan: SHA-256 / RSA 2048
+
+Danh sach tep:
+- ${a.signedName}  -> Ho so da ky, cai truc tiep vao thiet bi
+- ${a.certName}    -> Chung chi da dung de ky, xem/cai thu cong neu can
+${a.caPlist ? '- ' + a.caName + ' -> CAI HO SO NAY TRUOC TIEN, mot lan duy nhat,\n  de cac ho so ky boi CA nay hien "Da xac minh" tu dong ve sau.' : ''}
+
+Cach cai dat tren iPhone/iPad:
+1. Chuyen (các) tep .mobileconfig vao thiet bi (AirDrop, Mail, iCloud Drive...).
+2. Mo tep -> Cai dat > Da tai xuong Ho so -> Cai dat.
+3. Neu co tep CA gốc, cai tep do TRUOC, xac nhan trong Cai dat > Cai dat VPN & quan ly thiet bi
+   neu duoc hoi, roi moi cai ho so da ky.
+`;
+  const files = [
+    {name: a.signedName, data: a.signedBytes},
+    {name: a.certName, data: a.certDer},
+    {name: 'HUONG-DAN.txt', data: readme}
+  ];
+  if(a.caPlist) files.push({name: a.caName, data: a.caPlist});
+  downloadZip(files, a.signedName.replace(/\.mobileconfig$/i,'') + '.zip', $('signZipBtn'));
+});
+
+$('copyPlistBtn').addEventListener('click', async ()=>{
+  const text = $('plistPreview').textContent;
+  try{
+    await navigator.clipboard.writeText(text);
+    const btn = $('copyPlistBtn'); const orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Đã sao chép';
+    setTimeout(()=>{ btn.innerHTML = orig; }, 1600);
+  }catch(e){ alert('Không thể sao chép tự động — vui lòng chọn và sao chép thủ công.'); }
+});
+</script>
+</body>
+</html>
